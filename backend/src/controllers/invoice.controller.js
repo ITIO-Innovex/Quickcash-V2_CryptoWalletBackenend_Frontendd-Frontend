@@ -19,6 +19,24 @@ const { addNotification } = require("../middlewares/notification.middleware");
 const { EcommercePayment } = require('../models/Payment/EcommerPayment.model');
 var CryptoJS = require("crypto-js");
 
+// Helper function to convert recurring cycle string to days
+function convertRecurringCycleToDays(cycle) {
+  if (typeof cycle === 'number') {
+    return cycle; // Already a number, return as is
+  }
+  
+  if (typeof cycle === 'string') {
+    const cycleMap = {
+      'weekly': 7,
+      'monthly': 30,
+      'quarterly': 90,
+      'yearly': 365
+    };
+    return cycleMap[cycle.toLowerCase()] || 0;
+  }
+  
+  return 0; // Default to 0 if invalid
+}
 module.exports = {
   // This is used for add invoice details into the Invoice table
   addInvoice: async(req,res) => {
@@ -44,15 +62,17 @@ module.exports = {
           data: null
         });
       }
-
       var recurringDate = '';
 
+      // Convert recurring_cycle to days if it's a string
+      const recurringCycleDays = convertRecurringCycleToDays(recurring_cycle);
+
       if(recurring == "yes") {
-        recurringDate = moment().add(recurring_cycle,'days');
+        recurringDate = moment().add(recurringCycleDays,'days');
       }
   
       const invoice = await Invoice.create({
-        user,userid,account: AccountInfo?._id,reference,url,othersInfo,invoice_number,dueAmount: total,invoice_date,due_date,invoice_country,payment_qr_code,currency,recurring,recurring_cycle,productsInfo,discount,discount_type,tax,subTotal,sub_discount,sub_tax,total,note,terms,status,currency_text,createdBy,
+        user,userid,account: AccountInfo?._id,reference,url,othersInfo,invoice_number,dueAmount: total,invoice_date,due_date,invoice_country,payment_qr_code,currency,recurring,recurring_cycle: recurringCycleDays,productsInfo,discount,discount_type,tax,subTotal,sub_discount,sub_tax,total,note,terms,status,currency_text,createdBy,
         usdtotal: currency == "USD" ? total : await convertCurrencyAmount(currency,"USD",total),recurringDate,savetype:type
       });
   
@@ -129,15 +149,18 @@ module.exports = {
 
       var recurringDate = '';
 
+      // Convert recurring_cycle to days if it's a string
+      const recurringCycleDays = convertRecurringCycleToDays(recurring_cycle);
+
       if(recurring == "yes") {
-        recurringDate = moment().add(recurring_cycle,'days');
+        recurringDate = moment().add(recurringCycleDays,'days');
       }
   
       const invoice = await Invoice.create({
-        user,userid,account: AccountInfo?._id,reference:reference,url,othersInfo,invoice_number,dueAmount: total,invoice_date,due_date,invoice_country,payment_qr_code,currency,recurring,recurring_cycle,productsInfo,discount,discount_type,tax,subTotal,sub_discount,sub_tax,total,note,terms,status,currency_text,createdBy,
+        user,userid,account: AccountInfo?._id,reference:reference,url,othersInfo,invoice_number,dueAmount: total,invoice_date,due_date,invoice_country,payment_qr_code,currency,recurring,recurring_cycle: recurringCycleDays,productsInfo,discount,discount_type,tax,subTotal,sub_discount,sub_tax,total,note,terms,status,currency_text,createdBy,
         usdtotal: currency == "USD" ? total : await convertCurrencyAmount(currency,"USD",total),recurringDate,savetype:type
       });
-  
+
       if(!invoice) {
        return  res.status(401).json({
         status: 401,
@@ -837,141 +860,250 @@ module.exports = {
     }
   },
   // This is used for send reminder to invoice user
-  reminderInvoiceToUser : async (req,res) => {
-    try {
-      const invoice_number = req.params.id;
-      const ObjectId = mongoose.Types.ObjectId;
-      if(invoice_number == "") {
-        return res.status(401).json({
-          status: 401,
-          message: "Invoice Number is missing",
-          data: null
-        })
-      }
-
-      const invoiceDetails = await Invoice.aggregate([
-      {
-        $match: {
-          _id: new ObjectId(invoice_number)
+    // This is used for send reminder to invoice user
+     // This is used for send reminder to invoice user
+    // This is used for send reminder to invoice user
+    reminderInvoiceToUser : async (req,res) => {
+      try {
+        const invoice_number = req.params.id;
+        const ObjectId = mongoose.Types.ObjectId;
+        
+        console.log(`[REMINDER] Starting reminder process for invoice ID: ${invoice_number}`);
+        
+        if(!invoice_number || invoice_number == "") {
+          console.log(`[REMINDER] Error: Invoice Number is missing`);
+          return res.status(401).json({
+            status: 401,
+            message: "Invoice Number is missing",
+            data: null
+          })
         }
-      },
-      {
-        $lookup: {
-          "from": "users",
-          "localField": "user",
-          "foreignField": "_id",
-          "as": "userDetails"
+  
+        // Validate user is authenticated
+        if(!req?.user?._id) {
+          console.log(`[REMINDER] Error: User authentication required`);
+          return res.status(401).json({
+            status: 401,
+            message: "User authentication required",
+            data: null
+          })
         }
-      },
-      {
-        $lookup: {
-          "from": "qrcodes",
-          "localField": "user",
-          "foreignField": "user",
-          "as": "qrcodeDetails"
+  
+        console.log(`[REMINDER] User authenticated: ${req.user._id}`);
+  
+        // Validate ObjectId format
+        if(!ObjectId.isValid(invoice_number)) {
+          console.log(`[REMINDER] Error: Invalid Invoice ID format: ${invoice_number}`);
+          return res.status(401).json({
+            status: 401,
+            message: "Invalid Invoice ID format",
+            data: null
+          })
         }
-      },
-      {
-        $lookup: {
-          "from": "invoicesettings",
-          "localField": "user",
-          "foreignField": "user",
-          "as": "settingsDetails"
+  
+        console.log(`[REMINDER] Fetching invoice details...`);
+        const invoiceDetails = await Invoice.aggregate([
+        {
+          $match: {
+            _id: new ObjectId(invoice_number)
+          }
+        },
+        {
+          $lookup: {
+            "from": "users",
+            "localField": "user",
+            "foreignField": "_id",
+            "as": "userDetails"
+          }
+        },
+        {
+          $lookup: {
+            "from": "qrcodes",
+            "localField": "user",
+            "foreignField": "user",
+            "as": "qrcodeDetails"
+          }
+        },
+        {
+          $lookup: {
+            "from": "invoicesettings",
+            "localField": "user",
+            "foreignField": "user",
+            "as": "settingsDetails"
+          }
+        },
+        {
+          $project: {
+          _id:1,
+          user:1,
+          invoice_number:1,
+          invoice_date:1,
+          paidAmount:1,
+          due_date:1,
+          status:1,
+          transactionStatus:1,
+          othersInfo:1,
+          url:1,
+          userid:1,
+          invoice_country:1,
+          payment_qr_code:1,
+          currency_text:1,
+          currency:1,
+          recurring:1,
+          recurring_cycle:1,
+          productsInfo:1,
+          discount:1,
+          discount_type:1,
+          tax:1,
+          subTotal:1,
+          sub_discount:1,
+          sub_tax:1,
+          total:1,
+          createdAt:1,
+          createdBy:1,
+          dueAmount:1,
+          note:1,
+          terms:1,
+          userDetails: {
+          _id: 1,
+          name: 1,
+          email: 1,
+          mobile: 1,      
+          address: 1,
+          state:1,
+          postalcode:1,
+          city: 1,
+          country: 1,
+          defaultCurrency: 1,
+          status:1
+         },
+         qrcodeDetails: {
+         title:1,
+         image:1
+         },
+         settingsDetails: {
+          user:1,
+          invoice_country:1,
+          company_name:1,
+          mobile:1,
+          state:1,
+          city:1,
+          zipcode:1,
+          address:1,
+          logo:1,
+          regardstext:1
+         }
         }
-      },
-      {
-        $project: {
-        _id:1,
-        user:1,
-        invoice_number:1,
-        invoice_date:1,
-        paidAmount:1,
-        due_date:1,
-        status:1,
-        transactionStatus:1,
-        othersInfo:1,
-        url:1,
-        userid:1,
-        invoice_country:1,
-        payment_qr_code:1,
-        currency_text:1,
-        currency:1,
-        recurring:1,
-        recurring_cycle:1,
-        productsInfo:1,
-        discount:1,
-        discount_type:1,
-        tax:1,
-        subTotal:1,
-        sub_discount:1,
-        sub_tax:1,
-        total:1,
-        createdAt:1,
-        createdBy:1,
-        dueAmount:1,
-        note:1,
-        terms:1,
-        userDetails: {
-        _id: 1,
-        name: 1,
-        email: 1,
-        mobile: 1,      
-        address: 1,
-        state:1,
-        postalcode:1,
-        city: 1,
-        country: 1,
-        defaultCurrency: 1,
-        status:1
-       },
-       qrcodeDetails: {
-       title:1,
-       image:1
-       },
-       settingsDetails: {
-        user:1,
-        invoice_country:1,
-        company_name:1,
-        mobile:1,
-        state:1,
-        city:1,
-        zipcode:1,
-        address:1,
-        logo:1,
-        regardstext:1
-       }
-      }
-      },
-      ]);
-
-      if(!invoiceDetails) {
-        return  res.status(401).json({
-          status:401,
-          message: "Invoice Doesn't exists",
-          data:null
+        },
+        ]);
+  
+        // Check if array is empty or first element doesn't exist
+        if(!invoiceDetails || invoiceDetails.length === 0 || !invoiceDetails[0]) {
+          console.log(`[REMINDER] Error: Invoice not found with ID: ${invoice_number}`);
+          return res.status(404).json({
+            status: 404,
+            message: "Invoice Doesn't exist",
+            data: null
+          });
+        }
+  
+        const invoice = invoiceDetails[0];
+        console.log(`[REMINDER] Invoice found: ${invoice.invoice_number}`);
+  
+        // Validate invoice has required data
+        if(!invoice.invoice_number) {
+          console.log(`[REMINDER] Error: Invoice data is incomplete`);
+          return res.status(400).json({
+            status: 400,
+            message: "Invoice data is incomplete",
+            data: null
+          });
+        }
+  
+        var userDetails = null;
+        if(invoice?.userid) {
+          try {
+            console.log(`[REMINDER] Fetching client details for userid: ${invoice.userid}`);
+            userDetails = await Client.find({_id: new ObjectId(invoice.userid)});
+            console.log(`[REMINDER] Client details found: ${userDetails ? 'Yes' : 'No'}`);
+          } catch (err) {
+            console.log(`[REMINDER] Error fetching client details:`, err.message);
+            // Continue without client details, use othersInfo
+          }
+        }  
+  
+        // Get recipient details with fallbacks
+        const qrCodeImage = invoice?.qrcodeDetails?.[0]?.image 
+          ? `${process.env.BASE_URL}/qrcode/${invoice.qrcodeDetails[0].image}` 
+          : '';
+        
+        const recipientAddress = (userDetails && userDetails[0]?.address) 
+          ? userDetails[0].address 
+          : (invoice?.othersInfo?.[0]?.address || '');
+        
+        const recipientEmail = (userDetails && userDetails[0]?.email) 
+          ? userDetails[0].email 
+          : (invoice?.othersInfo?.[0]?.email || '');
+        
+        const recipientName = (userDetails && userDetails[0]?.firstName) 
+          ? userDetails[0].firstName 
+          : (invoice?.othersInfo?.[0]?.name || '');
+  
+        console.log(`[REMINDER] Recipient details - Email: ${recipientEmail}, Name: ${recipientName}, Address: ${recipientAddress ? 'Provided' : 'Not provided'}`);
+  
+        // Validate email exists
+        if(!recipientEmail || recipientEmail.trim() === '') {
+          console.log(`[REMINDER] Error: Recipient email is missing`);
+          return res.status(400).json({
+            status: 400,
+            message: "Recipient email is required to send reminder",
+            data: null
+          });
+        }
+  
+        // Generate PDF and send email
+        try {
+          console.log(`[REMINDER] Starting PDF generation for invoice: ${invoice.invoice_number}`);
+          await generatePDFfromURL(
+            req.user._id,
+            '', 
+            'invoice.pdf', 
+            qrCodeImage,
+            invoice.invoice_number, 
+            invoice,
+            recipientAddress,
+            recipientEmail,
+            recipientName, 
+            invoice.url || ''
+          );
+          console.log(`[REMINDER] PDF generated successfully for invoice: ${invoice.invoice_number}`);
+          console.log(`[REMINDER] Email sent successfully to: ${recipientEmail}`);
+          console.log(`[REMINDER] ✅ Reminder sent successfully for invoice ${invoice.invoice_number} to ${recipientEmail}`);
+        } catch (pdfError) {
+          console.log(`[REMINDER] ❌ Error generating PDF:`, pdfError.message);
+          console.log(`[REMINDER] Error stack:`, pdfError.stack);
+          return res.status(500).json({
+            status: 500,
+            message: "Error generating invoice PDF",
+            data: pdfError.message || "PDF generation failed"
+          });
+        }
+        
+        return res.status(201).json({
+          status: 201,
+          message: "Reminder has been sent successfully"
+        });
+  
+      } catch (error) {
+        console.log(`[REMINDER] ❌ Error in reminderInvoiceToUser:`, error.message);
+        console.log(`[REMINDER] Error stack:`, error.stack);
+        return res.status(500).json({
+          status: 500,
+          message: "Error while sending reminder",
+          data: error.message || "Internal server error"
         });
       }
-
-      if(invoiceDetails?.[0]?.userid) {
-        var userDetails = await Client.find({_id: new ObjectId(invoiceDetails?.[0]?.userid)});
-      }  
-
-      await generatePDFfromURL(req?.user?._id,'', 'invoice.pdf', invoiceDetails[0]?.qrcodeDetails?.[0]?.image && `${process.env.BASE_URL}/qrcode/${invoiceDetails[0]?.qrcodeDetails?.[0]?.image}` || '',invoiceDetails[0]?.invoice_number, invoiceDetails[0],userDetails ? userDetails?.[0]?.address : invoiceDetails?.[0]?.othersInfo?.[0]?.address,userDetails ? userDetails?.[0].email : invoiceDetails?.[0]?.othersInfo?.[0]?.email,userDetails? userDetails?.[0].firstName : invoiceDetails?.[0]?.othersInfo?.[0]?.name, invoiceDetails?.[0]?.url);
-      
-      return res.status(201).json({
-        status:201,
-        message: "Reminder has been sent"
-      });
-
-    } catch (error) {
-      console.log("error", error);
-      return  res.status(401).json({
-        status:401,
-        message: "Error while send reminder!",
-        data:null
-      });
-    }
-  },
+    },
   // This is used for get invoice details by their invoice number
   getInvoiceInfoByInvoiceNumber: async (req,res) => {
     

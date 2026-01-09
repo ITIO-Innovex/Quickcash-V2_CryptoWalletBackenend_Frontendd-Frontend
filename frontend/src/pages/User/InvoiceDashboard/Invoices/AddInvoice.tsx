@@ -128,6 +128,7 @@ const AddInvoice = () => {
     {
       field: 'action',
       headerName: 'Actions',
+      
       render: (row: any) => (
         <Box display="flex" gap={1}>
           <DeleteIcon
