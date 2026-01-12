@@ -165,6 +165,26 @@ const NewInvoice = () => {
     const accountId = jwtDecode<JwtPayload>(localStorage.getItem('token') as string);
     const reference = Math.floor(Math.random() * 10000000);
     const ciphertext = reference; // You can encrypt if needed
+    // Get selected member details for logging
+    const selectedMember = userId ? UsersList.find((item: any) => item._id === userId) : null;
+    const memberName = selectedMember ? `${selectedMember.firstName || ''} ${selectedMember.lastName || ''}`.trim() : '';
+    const memberEmail = selectedMember?.email || '';
+    const addressParts = selectedMember ? [
+      selectedMember.address || '',
+      selectedMember.city || '',
+      selectedMember.state || '',
+      selectedMember.country || ''
+    ].filter(part => part && part.trim() !== '') : [];
+    const memberAddress = addressParts.join(', ') || '';
+    
+    // Log member details being sent to backend
+    console.log('=== FRONTEND: Sending Invoice to Backend ===');
+    console.log('Member ID (userid):', userId);
+    console.log('Member Name:', memberName);
+    console.log('Member Email:', memberEmail);
+    console.log('Member Address:', memberAddress);
+    console.log('==========================================');
+    
     const payload = {
       user: accountId?.data?.id,
       reference,
@@ -201,6 +221,10 @@ const NewInvoice = () => {
       createdBy: 'user',
     };
     try {
+      console.log('=== FRONTEND: API Request Payload ===');
+      console.log('Payload:', JSON.stringify(payload, null, 2));
+      console.log('====================================');
+      
       const result = await api.post(`/${url}/v1/invoice/add`, payload);
       if (result.data.status == 201) {
         toast.success(result.data.message);
@@ -331,7 +355,38 @@ const NewInvoice = () => {
               <CustomSelect
                 label="Select Member"
                 value={userId}
-                onChange={(e) => setUserId(String(e.target.value))}
+                onChange={(e) => {
+                  const selectedId = String(e.target.value);
+                  setUserId(selectedId);
+                  
+                  // Find the selected member from UsersList
+                  const selectedMember = UsersList.find((item: any) => item._id === selectedId);
+                  
+                  if (selectedMember) {
+                    const memberName = `${selectedMember.firstName || ''} ${selectedMember.lastName || ''}`.trim();
+                    const memberEmail = selectedMember.email || '';
+                    const addressParts = [
+                      selectedMember.address || '',
+                      selectedMember.city || '',
+                      selectedMember.state || '',
+                      selectedMember.country || ''
+                    ].filter(part => part && part.trim() !== '');
+                    const memberAddress = addressParts.join(', ') || '';
+                    
+                    // Log member details on frontend
+                    console.log('=== FRONTEND: Member Selected ===');
+                    console.log('Member ID:', selectedId);
+                    console.log('Member Name:', memberName);
+                    console.log('Member Email:', memberEmail);
+                    console.log('Member Address:', memberAddress);
+                    console.log('Full Member Object:', selectedMember);
+                    console.log('================================');
+                  } else {
+                    console.log('=== FRONTEND: Member not found in UsersList ===');
+                    console.log('Selected ID:', selectedId);
+                    console.log('Available Users:', UsersList);
+                  }
+                }}
                 options={
                   UsersList?.map((item: any) => ({
                     label: `${item?.firstName} ${item?.lastName}`,

@@ -160,6 +160,21 @@ const invoiceSchema = new mongoose.Schema({
     type: String,
     required: false,
     default: ''
+  },
+  memberName: {
+    type: String,
+    required: false,
+    default: ''
+  },
+  memberEmail: {
+    type: String,
+    required: false,
+    default: ''
+  },
+  memberAddress: {
+    type: String,
+    required: false,
+    default: ''
   }
 },
 {
