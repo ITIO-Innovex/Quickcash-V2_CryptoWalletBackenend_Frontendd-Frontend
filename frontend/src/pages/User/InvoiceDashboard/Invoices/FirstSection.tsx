@@ -245,6 +245,11 @@ const FirstSection = () => {
   },
   { field: 'invoice_date', headerName: 'Invoice Date' },
   { field: 'due_date', headerName: 'Due Date' },
+  { 
+    field: 'memberEmail', 
+    headerName: 'Member Email', 
+    render: (row: any) => row?.memberEmail || row?.clientEmail || '-'
+  },
   { field: 'amount', headerName: 'Amount', render: (row: any) => `${getSymbolFromCurrency(row?.currency)} ${row?.total}`, },
   { field: 'paidAmount', headerName: 'Transactions', render: (row: any) => `${getSymbolFromCurrency(row?.currency)} ${row?.paidAmount}`, },
   {
@@ -316,13 +321,49 @@ const FirstSection = () => {
         </Typography>
       )}
 
-      <CustomModal open={open} onClose={handleClose} title="Invoice-Section Details" sx={{ backgroundColor: theme.palette.background.default }}>
+<CustomModal open={open} onClose={handleClose} title="Invoice-Section Details" sx={{ backgroundColor: theme.palette.background.default }}>
         <div className="header-divider" />
         <Box sx={{ mt: 2 }}>
           {selectedRow && (
             <Box>
+              {/* Client/Member Information Section */}
+              {(selectedRow.clientEmail || selectedRow.clientName || selectedRow.clientAddress || selectedRow.memberEmail || selectedRow.memberName || selectedRow.memberAddress) && (
+                <Box sx={{ mb: 3, p: 2, backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)', borderRadius: 2 }}>
+                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: theme.palette.primary.main }}>
+                    Member/Client Information
+                  </Typography>
+                  {(selectedRow.memberName || selectedRow.clientName) && (
+                    <Box display="flex" justifyContent="space-between" mb={1.5}>
+                      <Typography><strong>Member Name:</strong></Typography>
+                      <Typography>{selectedRow.memberName || selectedRow.clientName}</Typography>
+                    </Box>
+                  )}
+                  {(selectedRow.memberEmail || selectedRow.clientEmail) && (
+                    <Box display="flex" justifyContent="space-between" mb={1.5}>
+                      <Typography><strong>Member Email:</strong></Typography>
+                      <Typography>{selectedRow.memberEmail || selectedRow.clientEmail}</Typography>
+                    </Box>
+                  )}
+                  {(selectedRow.memberAddress || selectedRow.clientAddress) && (
+                    <Box display="flex" justifyContent="space-between" mb={1.5}>
+                      <Typography><strong>Member Address:</strong></Typography>
+                      <Typography>{selectedRow.memberAddress || selectedRow.clientAddress}</Typography>
+                    </Box>
+                  )}
+                </Box>
+              )}
+
+              {/* Invoice Details Section */}
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: theme.palette.primary.main }}>
+                Invoice Details
+              </Typography>
               {Object.entries(selectedRow)
-                .filter(([key, value]) => !['_id', '__v', 'url', 'othersInfo', 'productsInfo', 'user', 'account', 'userid'].includes(key) && value !== undefined && value !== null && value !== '')
+                .filter(([key, value]) => 
+                  !['_id', '__v', 'url', 'othersInfo', 'productsInfo', 'user', 'account', 'userid', 'clientDetails', 'clientEmail', 'clientName', 'clientAddress', 'memberName', 'memberEmail', 'memberAddress'].includes(key) && 
+                  value !== undefined && 
+                  value !== null && 
+                  value !== '' 
+                )
                 .map(([key, value]) => (
                   <Box display="flex" justifyContent="space-between" mb={2} key={key}>
                     <Typography><strong>{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:</strong></Typography>

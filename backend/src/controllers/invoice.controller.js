@@ -40,7 +40,13 @@ function convertRecurringCycleToDays(cycle) {
 module.exports = {
   // This is used for add invoice details into the Invoice table
   addInvoice: async(req,res) => {
+
+    console.log("Add Invoice Request RECEIVED");
     const {user,userid,reference,url,othersInfo,invoice_number,invoice_date,due_date,invoice_country,payment_qr_code,currency,recurring,recurring_cycle,productsInfo,discount,discount_type,tax,subTotal,sub_discount,sub_tax,total,note,terms,status,currency_text,type,createdBy} = req.body;
+    
+    // Log received data from frontend
+    console.log('=== BACKEND: Received Invoice Request (addInvoice) ===');
+    
     try {
       if(type == "send") {
         if(invoice_number == "" || invoice_country == "" || productsInfo[0]?.productName == "" || currency == "" || subTotal == "" || invoice_date == "" || due_date == "") {
@@ -70,11 +76,48 @@ module.exports = {
       if(recurring == "yes") {
         recurringDate = moment().add(recurringCycleDays,'days');
       }
+
+      // Fetch member details before creating invoice
+      var memberName = '';
+      var memberEmail = '';
+      var memberAddress = '';
+      var userDetails = null;
+      
+      console.log('=== BACKEND: Fetching Member Details ===');
+      console.log('Userid received:', userid);
+      
+      if(userid && String(userid).trim() !== '') {
+        console.log('Fetching member from database with ID:', userid);
+        userDetails = await Client.find({_id: new ObjectId(userid)});
+        console.log('Database query result:', userDetails);
+        
+        if(userDetails && userDetails.length > 0) {
+          memberName = `${userDetails[0].firstName || ''} ${userDetails[0].lastName || ''}`.trim();
+          memberEmail = userDetails[0].email || '';
+          // Combine address fields if available
+          const addressParts = [
+            userDetails[0].address || '',
+            userDetails[0].city || '',
+            userDetails[0].state || '',
+            userDetails[0].country || ''
+          ].filter(part => part && part.trim() !== '');
+          memberAddress = addressParts.join(', ') || '';
+          
+          console.log('=== BACKEND: Member Details Extracted ===');
+          console.log('Member Name:', memberName);
+        } else {
+          console.log('=== BACKEND: No member found ===');
+        }
+      } else {
+        console.log('=== BACKEND: No userid provided ===');
+      }
   
-      const invoice = await Invoice.create({
-        user,userid,account: AccountInfo?._id,reference,url,othersInfo,invoice_number,dueAmount: total,invoice_date,due_date,invoice_country,payment_qr_code,currency,recurring,recurring_cycle: recurringCycleDays,productsInfo,discount,discount_type,tax,subTotal,sub_discount,sub_tax,total,note,terms,status,currency_text,createdBy,
+      const invoiceData = {
+        user,userid,account: AccountInfo?._id,reference,url,othersInfo,invoice_number,dueAmount: total,invoice_date,due_date,invoice_country,payment_qr_code,currency,recurring,recurring_cycle: recurringCycleDays,productsInfo,discount,discount_type,tax,subTotal,sub_discount,sub_tax,total,note,terms,status,currency_text,createdBy,memberName,memberEmail,memberAddress,
         usdtotal: currency == "USD" ? total : await convertCurrencyAmount(currency,"USD",total),recurringDate,savetype:type
-      });
+      };
+      
+      const invoice = await Invoice.create(invoiceData);
   
       if(!invoice) {
        return  res.status(401).json({
@@ -82,10 +125,6 @@ module.exports = {
         message: "Error while inserting invoice data",
         data: null
        });
-      }
-
-      if(userid) {
-        var userDetails = await Client.find({_id: new ObjectId(userid)});
       }
       
       if(payment_qr_code) {
@@ -430,80 +469,81 @@ module.exports = {
      }
   },
   // This is used for get invoice list
-  invoiceList: async(req,res) => {
+    // This is used for get invoice list
+    invoiceList: async(req,res) => {
   
-    const user_id = req.params.id; 
-    const status = req.query.status || '';
-    const recurring = req.query.recurring || '';
-    const ObjectId = mongoose.Types.ObjectId;
-
-    try {
-     if(!user_id) {
-      return res.status(402).json({
-        status: 402,
-        message: "User Id is missing",
-        data: null
-      })
-     }
-
-    if(status && recurring) {
-      var details = await Invoice.find(
-        { user: new ObjectId(user_id),
-         $and: [
-          {'status' : status},
-          {'recurring': recurring}
-      ]}
-    ).sort({ updatedAt: -1 });
-    } else if(status) {
-      var details = await Invoice.find(
-        { user: new ObjectId(user_id),
-         $or: [
-          {'status' : status}
+      const user_id = req.params.id; 
+      const status = req.query.status || '';
+      const recurring = req.query.recurring || '';
+      const ObjectId = mongoose.Types.ObjectId;
+  
+      try {
+       if(!user_id) {
+        return res.status(402).json({
+          status: 402,
+          message: "User Id is missing",
+          data: null
+        })
+       }
+  
+      if(status && recurring) {
+        var details = await Invoice.find(
+          { user: new ObjectId(user_id),
+           $and: [
+            {'status' : status},
+            {'recurring': recurring}
         ]}
       ).sort({ updatedAt: -1 });
-    } else if(recurring) {
-      var details = await Invoice.find(
-        { user: new ObjectId(user_id),
-         $or: [
-          {'recurring': recurring}
-        ]}
-      ).sort({ updatedAt: -1 });
-    } else {
-      var details = await Invoice.find(
-        { user: new ObjectId(user_id),
-         $or: [{
-          'status' : { $ne: status }
-        }] }
-      ).sort({ updatedAt: -1 });
-    }
-
-    if(!details) {
-      return res.status(402).json({
-        status: 402,
-        message: "Error while fetching invoice list!!!",
-        data: null
-      })
-    }
- 
-    return res.status(201).json({
-      status:201,
-      message: "Invoice Data list is Successfully fetched",
-      data: details
-    });
-
-   } catch (error) {
-      console.log(error);
-      return res.status(500).json({
-        status: 500,
-        message: "Error while fetching invoice data list!!!",
-        data: error
+      } else if(status) {
+        var details = await Invoice.find(
+          { user: new ObjectId(user_id),
+           $or: [
+            {'status' : status}
+          ]}
+        ).sort({ updatedAt: -1 });
+      } else if(recurring) {
+        var details = await Invoice.find(
+          { user: new ObjectId(user_id),
+           $or: [
+            {'recurring': recurring}
+          ]}
+        ).sort({ updatedAt: -1 });
+      } else {
+        var details = await Invoice.find(
+          { user: new ObjectId(user_id),
+           $or: [{
+            'status' : { $ne: status }
+          }] }
+        ).sort({ updatedAt: -1 });
+      }
+  
+      if(!details) {
+        return res.status(402).json({
+          status: 402,
+          message: "Error while fetching invoice list!!!",
+          data: null
+        })
+      }
+   
+      return res.status(201).json({
+        status:201,
+        message: "Invoice Data list is Successfully fetched",
+        data: details
       });
-    }
-  },
+  
+     } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+          status: 500,
+          message: "Error while fetching invoice data list!!!",
+          data: error
+        });
+      }
+    },
   // This is used for admin invoice details
   AdmininvoiceList: async(req,res) => {
   
-    const user_id = req.params.id; 
+    const userId = req.params.id; 
     const status = req.query.status || '';
     const recurring = req.query.recurring || '';
     const ObjectId = mongoose.Types.ObjectId;
@@ -552,100 +592,174 @@ module.exports = {
     }
   },
   // This is used for fetch invoice details
-  invoiceById: async(req,res) => {
-    try {
-      const user_id = req.params.id;
-   
-      if(!user_id) {
-        return res.status(402).json({
-          status: 402,
-          message: "User Id is missing",
-          data: null
-        })
+    // This is used for fetch invoice details
+    invoiceById: async(req,res) => {
+      try {
+        const user_id = req.params.id;
+     
+        if(!user_id) {
+          return res.status(402).json({
+            status: 402,
+            message: "User Id is missing",
+            data: null
+          })
+        }
+    
+        const ObjectId = mongoose.Types.ObjectId;
+        const details = await Invoice.aggregate([
+        {
+          $match: {
+            _id: new ObjectId(user_id)
+          }
+        },
+        {
+          $lookup: {
+            "from": "users",
+            "localField": "user",
+            "foreignField": "_id",
+            "as": "userDetails"
+          }
+        },
+        {
+          $lookup: {
+            from: "clients",
+            let: { clientId: "$userid" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $or: [
+                      { $eq: ["$_id", { $toObjectId: "$$clientId" }] },
+                      { $eq: ["$_id", "$$clientId"] }
+                    ]
+                  }
+                }
+              }
+            ],
+            as: "clientDetails"
+          }
+        },
+        {
+          $addFields: {
+            // Get recipient email - from client if exists, else from othersInfo
+            recipientEmail: {
+              $cond: {
+                if: { $gt: [{ $size: "$clientDetails" }, 0] },
+                then: { $arrayElemAt: ["$clientDetails.email", 0] },
+                else: {
+                  $ifNull: [
+                    { $arrayElemAt: [{ $arrayElemAt: ["$othersInfo", 0] }, "email"] },
+                    ""
+                  ]
+                }
+              }
+            },
+            // Get recipient name
+            recipientName: {
+              $cond: {
+                if: { $gt: [{ $size: "$clientDetails" }, 0] },
+                then: {
+                  $trim: {
+                    $concat: [
+                      { $ifNull: [{ $arrayElemAt: ["$clientDetails.firstName", 0] }, ""] },
+                      " ",
+                      { $ifNull: [{ $arrayElemAt: ["$clientDetails.lastName", 0] }, ""] }
+                    ]
+                  }
+                },
+                else: {
+                  $ifNull: [
+                    { $arrayElemAt: [{ $arrayElemAt: ["$othersInfo", 0] }, "name"] },
+                    ""
+                  ]
+                }
+              }
+            },
+            // Get recipient address
+            recipientAddress: {
+              $cond: {
+                if: { $gt: [{ $size: "$clientDetails" }, 0] },
+                then: { $ifNull: [{ $arrayElemAt: ["$clientDetails.address", 0] }, ""] },
+                else: {
+                  $ifNull: [
+                    { $arrayElemAt: [{ $arrayElemAt: ["$othersInfo", 0] }, "address"] },
+                    ""
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          $project: {
+          _id:1,
+          user:1,
+          invoice_number:1,
+          invoice_date:1,
+          due_date:1,
+          status:1,
+          othersInfo:1,
+          url:1,
+          userid:1,
+          invoice_country:1,
+          payment_qr_code:1,
+          currency_text:1,
+          currency:1,
+          recurring:1,
+          recurring_cycle:1,
+          productsInfo:1,
+          discount:1,
+          discount_type:1,
+          tax:1,
+          subTotal:1,
+          sub_discount:1,
+          sub_tax:1,
+          total:1,
+          createdAt:1,
+          createdBy:1,
+          dueAmount:1,
+          note:1,
+          terms:1,
+          recipientEmail:1,
+          recipientName:1,
+          recipientAddress:1,
+          userDetails: {
+          _id: 1,
+          name: 1,
+          email: 1,
+          mobile: 1,      
+          address: 1,
+          city: 1,
+          country: 1,
+          defaultCurrency: 1,
+          status:1
+        }
       }
+     },
+     ])
   
-      const ObjectId = mongoose.Types.ObjectId;
-      const details = await Invoice.aggregate([
-      {
-        $match: {
-          _id: new ObjectId(user_id)
-        }
-      },
-      {
-        $lookup: {
-          "from": "users",
-          "localField": "user",
-          "foreignField": "_id",
-          "as": "userDetails"
-        }
-      },
-      {
-        $project: {
-        _id:1,
-        user:1,
-        invoice_number:1,
-        invoice_date:1,
-        due_date:1,
-        status:1,
-        othersInfo:1,
-        url:1,
-        userid:1,
-        invoice_country:1,
-        payment_qr_code:1,
-        currency_text:1,
-        currency:1,
-        recurring:1,
-        recurring_cycle:1,
-        productsInfo:1,
-        discount:1,
-        discount_type:1,
-        tax:1,
-        subTotal:1,
-        sub_discount:1,
-        sub_tax:1,
-        total:1,
-        createdAt:1,
-        createdBy:1,
-        dueAmount:1,
-        note:1,
-        terms:1,
-        userDetails: {
-        _id: 1,
-        name: 1,
-        email: 1,
-        mobile: 1,      
-        address: 1,
-        city: 1,
-        country: 1,
-        defaultCurrency: 1,
-        status:1
-      }
-    }
-   },
-   ])
-
-   if(!details) {
-     return res.status(402).json({
-      status: 402,
-      message: "Error while fetching invoice details!!!",
-      data: null
+     if(!details) {
+       return res.status(402).json({
+        status: 402,
+        message: "Error while fetching invoice details!!!",
+        data: null
+       })
+     }
+    
+    return res.status(201).json({
+      status:201,
+      message: "Invoice details is Successfully fetched",
+      data: details
+    })
+    } catch (error) {
+      console.log(error); 
+      return res.status(500).json({
+       status:500,
+       message: "Something went wrong with api",
+       data: error
      })
-   }
-  
-  return res.status(201).json({
-    status:201,
-    message: "Invoice details is Successfully fetched",
-    data: details
-  })
-  } catch (error) {
-    console.log(error); 
-    return res.status(500).json({
-     status:500,
-     message: "Something went wrong with api",
-     data: error
-   })
-  }
-  },
+    }
+    },
   // This is used for get transaction by their id
   transactionsById: async(req,res) => {
     try {
