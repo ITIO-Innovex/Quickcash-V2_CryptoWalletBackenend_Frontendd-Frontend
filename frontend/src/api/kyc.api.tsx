@@ -17,7 +17,11 @@ export const loadAndStoreKycData = async () => {
     });
 
     const data = response.data?.data?.[0];
+    console.log('KYC Data :', data);
     if (response.data?.status === 201 && data) {
+      // Prefer dob/gender from userDetails if present, else fallback to root
+      const dob = data.userDetails?.dob || data.dob || '';
+      const gender = data.userDetails?.gender || data.gender || '';
       const kycData = {
         email: data.email,
         emailVerified: data.emailVerified,
@@ -33,7 +37,9 @@ export const loadAndStoreKycData = async () => {
         addressProofPhoto: data.addressProofPhoto || null,
         createdAt: data.createdAt,
         status: data.status,
-        _id: data._id
+        _id: data._id,
+        dob,
+        gender,
       };
 
       localStorage.setItem('KycData', JSON.stringify(kycData));

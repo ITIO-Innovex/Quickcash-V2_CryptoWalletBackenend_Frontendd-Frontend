@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { JwtPayload } from '@/types/jwt';
+import api from '@/helpers/apiHelper';
 
 interface AuthContextType {
   token: string | null;
@@ -15,6 +16,12 @@ interface AuthContextType {
   isAdminAuthenticated: boolean;
   adminLogin: (token: string) => void;
   adminLogout: () => void;
+
+   // KYC-specific
+  isKycCompleted: boolean;
+  setIsKycCompleted: React.Dispatch<React.SetStateAction<boolean>>;
+  isKycFilled: boolean;
+  kycStatus: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,6 +36,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [adminToken, setAdminToken] = useState<string | null>(null);
   const [admin, setAdmin] = useState<JwtPayload['data'] | null>(null);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const url = import.meta.env.VITE_NODE_ENV == 'production' ? 'api' : 'api';
+  const [isKycCompleted, setIsKycCompleted] = useState(false); 
+  const [isKycFilled, setIsKycFilled] = useState(false);
+  const [kycStatus, setKycStatus] = useState('');
+
+  useEffect(() => {
+  const fetchKycStatus = async () => {
+    try {
+      const res = await api.get(`${url}/v1/kyc/status`);
+      if (res.status === 200) {
+        const status = res.data.status?.toLowerCase();
+        const filled = res.data.isKycFilled;
+
+        console.log('Current KYC Status:', status);
+        console.log('Is KYC Filled:', filled);
+        
+        setKycStatus(status);
+        setIsKycFilled(filled);
+
+        if (status === 'completed') {
+          setIsKycCompleted(true);
+        } else {
+          setIsKycCompleted(false);
+        }
+      }
+    } catch (error) {
+      console.log('⚠️ Error fetching KYC status:', error);
+    }
+  };
+
+  fetchKycStatus();
+}, []);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -114,6 +153,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         isAdminAuthenticated,
         adminLogin,
         adminLogout,
+
+        // KYC values
+        isKycCompleted,
+        setIsKycCompleted,
+        isKycFilled,
+        kycStatus,
       }}
     >
       {children}

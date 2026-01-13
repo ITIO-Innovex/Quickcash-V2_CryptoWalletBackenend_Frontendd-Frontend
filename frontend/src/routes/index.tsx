@@ -98,32 +98,73 @@ import ResponseInvoice from '@/pages/User/InvoiceDashboard/Invoices/InvoiceRespo
 import InvoiceEcommercePayment from '../pages/User/InvoiceDashboard/Invoices/InvoicePay';
 
 // --- Auth Route Wrapper ---
-const PrivateRoute = ({ children }: { children: JSX.Element }) => {
-  const { isAuthenticated, loading, logout } = useAuth();
+// const PrivateRoute = ({ children }: { children: JSX.Element }) => {
+//   const { isAuthenticated, loading, logout ,isKycCompleted} = useAuth();
   
+//   if (localStorage.getItem('source')) {
+//     const ALLOWED_URLS = [
+//       '/digital-signature/placeholder-sign',
+//       '/digital-signature/recipientSignPdf'
+//     ];
+  
+//     const currentPath = window.location.pathname;
+//     const isBlocked = !ALLOWED_URLS.some((allowedPath) =>
+//       currentPath.startsWith(allowedPath)
+//     );
+  
+//     if (isBlocked) {
+//       logout();
+//       return <Navigate to="/" />;
+//     }
+//   }
+//   console.log('isAuthenticated', isAuthenticated);
+//   console.log('loading', loading);
+
+//   if (loading) return null; // wait for auth state to load before redirecting
+
+//   return isAuthenticated ? children : <Navigate to="/" />;
+// };
+
+// --- Auth Route Wrapper ---
+const PrivateRoute = ({ children }: { children: JSX.Element }) => {
+  const { isAuthenticated, loading, logout, isKycCompleted } = useAuth();
+
+  // If loading, don't render the component yet
+  if (loading) return null; // Wait for auth state to load before redirecting
+
+  // If KYC is not completed, restrict access to only /kyc and /dashboard
+  const currentPath = window.location.pathname;
+  const allowedRoutes = ['/kyc', '/dashboard'];
+
+  if (!isKycCompleted && !allowedRoutes.includes(currentPath)) {
+    
+    return <Navigate to="/dashboard" />;
+  }
+
+  // Additional source-based route restrictions
   if (localStorage.getItem('source')) {
     const ALLOWED_URLS = [
       '/digital-signature/placeholder-sign',
       '/digital-signature/recipientSignPdf'
     ];
-  
-    const currentPath = window.location.pathname;
+
     const isBlocked = !ALLOWED_URLS.some((allowedPath) =>
       currentPath.startsWith(allowedPath)
     );
-  
+
     if (isBlocked) {
       logout();
       return <Navigate to="/" />;
     }
   }
+
   console.log('isAuthenticated', isAuthenticated);
   console.log('loading', loading);
 
-  if (loading) return null; // wait for auth state to load before redirecting
-
+  // Allow access if authenticated, otherwise redirect to login
   return isAuthenticated ? children : <Navigate to="/" />;
 };
+
 // if admin authenticated, redirect to admin dashboard
 const AdminPrivateRoute = ({ children }: { children: JSX.Element }) => {
   const { isAuthenticated, loading } = useAuth();

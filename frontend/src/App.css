@@ -1748,7 +1748,8 @@ body {
 }
 
 .status-chip.success,
-.status-chip.active {
+.status-chip.active
+.status-chip.processed {
   background-color: #e0ffe0;
   color: #2e7d32;
   border: 1px solid #2e7d32;
@@ -1756,10 +1757,15 @@ body {
 
 .status-chip.pending,
 .status-chip.inactive {
-  background-color: #fff3e0;
-  color: #ef6c00;
+  background-color: #fadbba;
+  color: #924302;
   border: 1px solid #ef6c00;
 }
+.status-chip.submitted{
+  background-color: #bbd9fc;
+  color: #018ee0b7;
+  border: 1px solid #0173b0;
+} 
 
 .status-chip.failed,
 .status-chip.decline {

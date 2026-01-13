@@ -58,17 +58,13 @@ const ResidentialAddress: React.FC<ResidentialAddressProps> = ({ onBack, frontDo
       const parsed = JSON.parse(kycData);
 
       // ✅ Restore address document type
-      if (parsed.addressDocumentType) {
-        setDocumentType(parsed.addressDocumentType);
-      }
+       if (parsed.addressDocumentType) setDocumentType(parsed.addressDocumentType);
 
       // ✅ Restore uploaded file name (just the name, file can't be restored fully)
-      if (parsed.addressProofPhoto) {
-          const path = `/kyc/${parsed.addressProofPhoto}`;
-          const dummyFile = new File([], parsed.addressProofPhoto);
+        if (parsed.addressProofPhoto) {
+          const path = `${import.meta.env.VITE_PUBLIC_URL}/kyc/${parsed.addressProofPhoto}`;
           setPreviewUrl(path);
-          setDocumentFileName(parsed.addressProofPhoto);
-          setDocument(dummyFile); // set dummy file to preserve selectedFile
+          setDocument(new File([], parsed.addressProofPhoto)); // Use a dummy file to preserve selectedFile
         }
        // ✅ Set flag if data was already present
       if (parsed.addressProofPhoto || parsed.addressDocumentType) {
@@ -80,6 +76,27 @@ const ResidentialAddress: React.FC<ResidentialAddressProps> = ({ onBack, frontDo
     }
   }
 }, []);
+
+  const handleFileSelect = (file: File | null) => {
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Only PDF, JPG, JPEG, and PNG formats are allowed');
+      return;
+    }
+
+    const preview = URL.createObjectURL(file);
+    setDocument(file);
+    setPreviewUrl(preview);
+
+    const existing = JSON.parse(localStorage.getItem('KycData') || '{}');
+    const updated = {
+      ...existing,
+      addressProofPhoto: `addressProofPhoto-${Date.now()}-${file.name}`,
+    };
+    localStorage.setItem('KycData', JSON.stringify(updated));
+  };
 
 const handleUpdate = async (skipFileUpload = false) => {
   if (!validate()) return;
@@ -96,25 +113,49 @@ const handleUpdate = async (skipFileUpload = false) => {
   formData.append('primaryPhoneNumber', kycData.phone.replace(/\D/g, ''));
   formData.append('secondaryPhoneNumber', kycData.additionalPhone.replace(/\D/g, ''));
   formData.append('addressDocumentType', documentType);
-  formData.append('dob', kycData.dob);      // Add this line
-  formData.append('gender', kycData.gender); // Add this line
+  // Save dob as ddMMyyyy string if present (from ContactDetails.tsx)
+  if (kycData.dob) {
+    // If already in ddMMyyyy format, send as is
+    if (kycData.dob.length === 8 && !kycData.dob.includes('-')) {
+      formData.append('dob', kycData.dob);
+    } else {
+      // Try to parse as date and convert to ddMMyyyy
+      const dobDate = new Date(kycData.dob);
+      if (!isNaN(dobDate.getTime())) {
+        const dd = String(dobDate.getDate()).padStart(2, '0');
+        const mm = String(dobDate.getMonth() + 1).padStart(2, '0');
+        const yyyy = dobDate.getFullYear();
+        formData.append('dob', `${dd}${mm}${yyyy}`);
+      } else {
+        console.error('Invalid date format');
+        toast.error('Invalid Date of Birth format');
+        return;
+      }
+    }
+  }
+
+  // Handle Gender
+  formData.append('gender', kycData.gender);
   formData.append('status', 'Pending');
 
   // 🔁 Attach file only if it's new and required
-  if (!skipFileUpload && document) {
+  // Only send addressProofPhoto if a new file is selected (not a dummy File)
+  if (!skipFileUpload && document && document.size > 0) {
     formData.append('addressProofPhoto', document);
   }
 
-  if (!skipFileUpload && frontDocument?.raw) {
+  // Only send documentPhotoFront if a new file is selected (not a dummy File)
+  if (!skipFileUpload && frontDocument?.raw && frontDocument.raw.size > 0) {
     formData.append('documentPhotoFront', frontDocument.raw);
   }
 
-  if (!skipFileUpload && backDocument?.raw) {
+  // Only send documentPhotoBack if a new file is selected (not a dummy File)
+  if (!skipFileUpload && backDocument?.raw && backDocument.raw.size > 0) {
     formData.append('documentPhotoBack', backDocument.raw);
   }
 
   try {
-    let response;
+    let response:any;
     if (kycData._id) {
       response = await axios.patch(`/${url}/v1/kyc/update/${kycData._id}`, formData, {
         headers: {
@@ -189,67 +230,43 @@ const handleUpdate = async (skipFileUpload = false) => {
           </Box>
         </Grid>
 
-        <Grid item xs={12}>
+         <Grid item xs={12}>
           <Box className="input-section">
             <Typography className="input-label">UPLOAD DOCUMENT</Typography>
-           <FileUpload
-              onFileSelect={(file) => {
-                if (!file) return;
-
-                const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-                const isAllowed = allowedTypes.includes(file.type);
-
-                if (!isAllowed) {
-                  toast.error('Please upload supported file type (.jpg, .jpeg, .png, .pdf)');
-                  return;
-                }
-
-                const fileName = `addressProofPhoto-${Date.now()})-${file.name}`;
-                const preview = URL.createObjectURL(file);
-                setDocument(file);
-                setDocumentFileName(fileName);
-                setPreviewUrl(preview);
-                setErrors({ ...errors, document: '' });
-
-                const existing = JSON.parse(localStorage.getItem('KycData') || '{}');
-                const updated = {
-                  ...existing,
-                  addressProofPhoto: fileName,
-                  addressDocumentType: documentType,
-                };
-                localStorage.setItem('KycData', JSON.stringify(updated));
-
-                console.log('[📤 Residential Address File Selected]:', fileName);
-              }}
+            <FileUpload
+              onFileSelect={handleFileSelect}
               selectedFile={document}
               acceptedFormats=".jpg,.jpeg,.png,.pdf"
             />
-
-           {previewUrl && (
             <Box sx={{ mt: 2 }}>
               <Typography sx={{ fontSize: '14px', color: '#555' }}>
                 Document Preview:
               </Typography>
-              {document?.type === 'application/pdf' ? (
-                <img
-                  src={PDFImage}
-                  alt="PDF Preview"
-                  style={{ maxWidth: '100%', maxHeight: '300px', marginTop: '10px' }}
-                />
-              ) : (
+              {document ? (
+                document.type === 'application/pdf' ? (
+                  <img
+                    src={PDFImage}
+                    alt="PDF Preview"
+                    style={{ maxWidth: '100%', maxHeight: '300px', marginTop: '10px' }}
+                  />
+                ) : (
+                  <img
+                    src={previewUrl}
+                    alt="Document Preview"
+                    style={{ maxWidth: '100%', maxHeight: '300px', marginTop: '10px' }}
+                  />
+                )
+              ) : previewUrl ? (
                 <img
                   src={previewUrl}
-                  alt="Address Proof Preview"
+                  alt="Document Preview"
                   style={{ maxWidth: '100%', maxHeight: '300px', marginTop: '10px' }}
                 />
-              )}
+              ) : null}
+                  <Typography sx={{ fontSize: '13px', color: '#888', mt: 1 }}>
+                   File: {document?.name}
+                 </Typography>
             </Box>
-          )}
-            {errors.document && (
-              <Typography className="error-text" style={{ color: 'red', fontSize: '0.8rem' }}>
-                {errors.document}
-              </Typography>
-            )}
           </Box>
         </Grid>
 

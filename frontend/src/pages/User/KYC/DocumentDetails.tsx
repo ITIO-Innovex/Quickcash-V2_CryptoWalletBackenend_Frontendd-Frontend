@@ -47,14 +47,16 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({
     const existing = JSON.parse(localStorage.getItem('KycData') || '{}');
     if (existing.documentType) setDocumentType(existing.documentType);
     if (existing.documentNumber) setDocumentNumber(existing.documentNumber);
-    if (existing.documentPhotoFront) {
-      const frontUrl = `/kyc/${existing.documentPhotoFront}`;
-      setFrontPreview(frontUrl);
+
+      if (existing.documentPhotoFront) {
+      const frontUrl = `${import.meta.env.VITE_PUBLIC_URL}/kyc/${existing.documentPhotoFront}`;
+      setFrontPreview(frontUrl); // Set the preview for the front document
       setFrontDocument({ raw: new File([], existing.documentPhotoFront), preview: frontUrl });
     }
+
     if (existing.documentPhotoBack) {
-      const backUrl = `/kyc/${existing.documentPhotoBack}`;
-      setBackPreview(backUrl);
+      const backUrl = `${import.meta.env.VITE_PUBLIC_URL}/kyc/${existing.documentPhotoBack}`;
+      setBackPreview(backUrl); // Set the preview for the back document
       setBackDocument({ raw: new File([], existing.documentPhotoBack), preview: backUrl });
     }
   }, []);
@@ -92,31 +94,30 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({
 
     const preview = URL.createObjectURL(file);
     const imageName = `${type}-document-${Date.now()}-${file.name}`;
-
     const existing = JSON.parse(localStorage.getItem('KycData') || '{}');
-    const updated = {
-      ...existing,
-      ...(type === 'front' ? { frontDocumentName: imageName } : { backDocumentName: imageName }),
-    };
-    localStorage.setItem('KycData', JSON.stringify(updated));
+    let updated = { ...existing };
 
     if (type === 'front') {
+      updated.frontDocumentName = imageName;
+      updated.documentPhotoFront = imageName;
       setFrontFile(file);
-       setFrontPreview(preview);
+      setFrontPreview(preview);
       setFrontDocument({ raw: file, preview });
-
       console.log('[✅ FRONT DOCUMENT SELECTED]');
       console.log('Name:', file.name);
       console.log('Preview:', preview);
     } else {
+      updated.backDocumentName = imageName;
+      updated.documentPhotoBack = imageName;
       setBackFile(file);
       setBackPreview(preview);
       setBackDocument({ raw: file, preview });
-
       console.log('[✅ BACK DOCUMENT SELECTED]');
       console.log('Name:', file.name);
       console.log('Preview:', preview);
     }
+    // Only update localStorage if a new file is selected
+    localStorage.setItem('KycData', JSON.stringify(updated));
   };
 
   return (
@@ -160,7 +161,7 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({
           </Box>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+           <Grid item xs={12} md={6}>
           <Box className="input-section">
             <Typography className="input-label">UPLOAD DOCUMENT (FRONT)</Typography>
             <FileUpload sx={{color:'text.gray'}}
@@ -168,22 +169,43 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({
               selectedFile={frontFile}
               acceptedFormats=".jpg,.jpeg,.png,.pdf"
             />
-
-            {frontFile && frontFile.type === 'application/pdf' ? (
-            <img
-              src={PDFImage}
-              alt="PDF Preview"
-              style={{ maxWidth: '100%', maxHeight: '300px', marginTop: '10px' }}
-            />
-          ) : (
-            frontPreview && (
-              <img
-                src={frontPreview}
-                alt="Front Preview"
-                style={{ maxWidth: '100%', maxHeight: '300px', marginTop: '10px' }}
-              />
-            )
-          )}
+            {/* Show preview for new upload or DB image */}
+            <Box sx={{ mt: 2 }}>
+              <Typography sx={{ fontSize: '14px', color: '#555' }}>
+                Document Preview:
+              </Typography>
+              {frontFile ? (
+                frontFile.type === 'application/pdf' ? (
+                  <img
+                    src={PDFImage}
+                    alt="PDF Preview"
+                    style={{ maxWidth: '100%', maxHeight: '300px', marginTop: '10px' }}
+                  />
+                ) : (
+                  <img
+                    src={frontPreview}
+                    alt="Front Preview"
+                    style={{ maxWidth: '100%', maxHeight: '300px', marginTop: '10px' }}
+                  />
+                )
+              ) : frontPreview ? (
+                <img
+                  src={frontPreview}
+                  alt="Front Preview"
+                  style={{ maxWidth: '100%', maxHeight: '300px', marginTop: '10px' }}
+                />
+              ) : null}
+              {/* Filename always from localStorage */}
+              {(() => {
+                const existing = JSON.parse(localStorage.getItem('KycData') || '{}');
+                const Image1 = existing.documentPhotoFront;
+                return Image1 ? (
+                  <Typography sx={{ fontSize: '13px', color: '#888', mt: 1 }}>
+                    File: {Image1}
+                  </Typography>
+                ) : null;
+              })()}
+            </Box>
           </Box>
         </Grid>
 
@@ -191,26 +213,48 @@ const DocumentDetails: React.FC<DocumentDetailsProps> = ({
           <Box className="input-section">
             <Typography className="input-label">UPLOAD DOCUMENT (BACK)</Typography>
             <FileUpload
-            sx={{color:'text.gray'}}
+              sx={{color:'text.gray'}}
               onFileSelect={(file) => handleFileSelect(file, 'back')}
               selectedFile={backFile}
               acceptedFormats=".jpg,.jpeg,.png,.pdf"
             />
-            {backFile && backFile.type === 'application/pdf' ? (
-              <img
-                src={PDFImage}
-                alt="PDF Preview"
-                style={{ maxWidth: '100%', maxHeight: '300px', marginTop: '10px' }}
-              />
-            ) : (
-              backPreview && (
+            {/* Show preview for new upload or DB image */}
+            <Box sx={{ mt: 2 }}>
+              <Typography sx={{ fontSize: '14px', color: '#555' }}>
+                Document Preview:
+              </Typography>
+              {backFile ? (
+                backFile.type === 'application/pdf' ? (
+                  <img
+                    src={PDFImage}
+                    alt="PDF Preview"
+                    style={{ maxWidth: '100%', maxHeight: '300px', marginTop: '10px' }}
+                  />
+                ) : (
+                  <img
+                    src={backPreview}
+                    alt="Back Preview"
+                    style={{ maxWidth: '100%', maxHeight: '300px', marginTop: '10px' }}
+                  />
+                )
+              ) : backPreview ? (
                 <img
                   src={backPreview}
                   alt="Back Preview"
                   style={{ maxWidth: '100%', maxHeight: '300px', marginTop: '10px' }}
                 />
-              )
-            )}
+              ) : null}
+              {/* Filename always from localStorage */}
+              {(() => {
+                const existing = JSON.parse(localStorage.getItem('KycData') || '{}');
+                const Image2 = existing.documentPhotoBack;
+                return Image2 ? (
+                  <Typography sx={{ fontSize: '13px', color: '#888', mt: 1 }}>
+                    File: {Image2}
+                  </Typography>
+                ) : null;
+              })()}
+            </Box>
           </Box>
         </Grid>
 

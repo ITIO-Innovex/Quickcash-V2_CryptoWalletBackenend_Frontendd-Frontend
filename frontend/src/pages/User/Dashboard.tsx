@@ -34,7 +34,7 @@ const UserDashboard = () => {
         const status = res.data.status?.toLowerCase(); // Normalize casing
         const filled = res.data.isKycFilled;
 
-        console.log('📊 USER KYC status:', status, '| isKycFilled:', filled);
+        // console.log('📊 USER KYC status:', status, '| isKycFilled:', filled);
 
         setKycStatus(status);
         setIsKycFilled(filled);

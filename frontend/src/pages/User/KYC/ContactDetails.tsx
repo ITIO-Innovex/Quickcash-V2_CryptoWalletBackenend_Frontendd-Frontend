@@ -60,6 +60,22 @@ React.useEffect(() => {
         setEmail(data.email);
         setIsEmailVerified(data.emailVerified);
       }
+      if (data.dob) {
+        // Set dob from the API data (accept ddMMyyyy, ISO, or YYYY-MM-DD)
+        if (data.dob.length === 8 && !data.dob.includes('-')) {
+          const dd = data.dob.slice(0, 2);
+          const mm = data.dob.slice(2, 4);
+          const yyyy = data.dob.slice(4, 8);
+          setDob(new Date(Number(yyyy), Number(mm) - 1, Number(dd)));
+        } else {
+          setDob(new Date(data.dob));
+        }
+      }
+
+      if (data.gender) {
+        // Set gender from the API data
+        setGender(data.gender);
+      }
 
       if (data.phone) {
         const primaryCode = data.phone.slice(0, 3); // "+91"
@@ -83,6 +99,8 @@ React.useEffect(() => {
         try {
           const parsed = JSON.parse(userData);
           if (parsed.email) setEmail(parsed.email);
+          if (parsed.dob) setDob(new Date(parsed.dob)); // Optional if dob is saved in userData
+          if (parsed.gender) setGender(parsed.gender); 
         } catch (err) {
           console.error('[❌ ERROR PARSING userData]:', err);
         }
@@ -106,48 +124,59 @@ React.useEffect(() => {
   };
   
   React.useEffect(() => {
-  const kycLocal = localStorage.getItem('KycData');
-  if (kycLocal) {
-    try {
-      const parsed = JSON.parse(kycLocal);
-      if (parsed.dob) {
-        // Convert ddmmyyyy to Date object
-        const d = parsed.dob;
-        if (d.length === 8) {
-          setDob(new Date(`${d.slice(4,8)}-${d.slice(2,4)}-${d.slice(0,2)}`));
+    const kycLocal = localStorage.getItem('KycData');
+    if (kycLocal) {
+      try {
+        const parsed = JSON.parse(kycLocal);
+        if (parsed.dob) {
+          if (parsed.dob.length === 8 && !parsed.dob.includes('-')) {
+            const dd = parsed.dob.slice(0, 2);
+            const mm = parsed.dob.slice(2, 4);
+            const yyyy = parsed.dob.slice(4, 8);
+            setDob(new Date(Number(yyyy), Number(mm) - 1, Number(dd)));
+          } else {
+            setDob(new Date(parsed.dob));
+          }
         }
+        if (parsed.gender) setGender(parsed.gender);
+        if (parsed.email) setEmail(parsed.email);
+        if (parsed.phone) {
+          setPrimaryCountryCode(parsed.phone.slice(0, 3));
+          setPrimaryPhone(parsed.phone.slice(3));
+        }
+        if (parsed.additionalPhone) {
+          setAdditionalCountryCode(parsed.additionalPhone.slice(0, 3));
+          setAdditionalPhone(parsed.additionalPhone.slice(3));
+        }
+        if (parsed.emailVerified) setIsEmailVerified(true);
+        if (parsed.phonePVerified) setIsPrimaryPhoneVerified(true);
+        if (parsed.phoneSVerified) setIsAdditionalPhoneVerified(true);
+      } catch (err) {
+        console.error('[❌ ERROR PARSING KycData for restoration]:', err);
       }
-      if (parsed.gender) setGender(parsed.gender);
-      if (parsed.email) setEmail(parsed.email);
-      if (parsed.phone) {
-        setPrimaryCountryCode(parsed.phone.slice(0, 3));
-        setPrimaryPhone(parsed.phone.slice(3));
-      }
-      if (parsed.additionalPhone) {
-        setAdditionalCountryCode(parsed.additionalPhone.slice(0, 3));
-        setAdditionalPhone(parsed.additionalPhone.slice(3));
-      }
-      if (parsed.emailVerified) setIsEmailVerified(true);
-      if (parsed.phonePVerified) setIsPrimaryPhoneVerified(true);
-      if (parsed.phoneSVerified) setIsAdditionalPhoneVerified(true);
-    } catch (err) {
-      console.error('[❌ ERROR PARSING KycData for restoration]:', err);
     }
-  }
-}, []);
+  }, []);
 
   React.useEffect(() => {
-  const existing = JSON.parse(localStorage.getItem('KycData') || '{}');
-  const updated = {
-    ...existing,
-    email,
-    phone: `${primaryCountryCode}${primaryPhone}`,
-    additionalPhone: `${additionalCountryCode}${additionalPhone}`,
-    dob: formatStorageDate(dob),
-    gender,
-  };
-  localStorage.setItem('KycData', JSON.stringify(updated));
-}, [email, primaryPhone, additionalPhone, primaryCountryCode, additionalCountryCode, dob, gender]);
+    const existing = JSON.parse(localStorage.getItem('KycData') || '{}');
+    // Store dob as ddMMyyyy (e.g., 12052020 for 12-05-2020)
+    let dobString = '';
+    if (dob) {
+      const dd = String(dob.getDate()).padStart(2, '0');
+      const mm = String(dob.getMonth() + 1).padStart(2, '0');
+      const yyyy = dob.getFullYear();
+      dobString = `${dd}${mm}${yyyy}`;
+    }
+    const updated = {
+      ...existing,
+      email,
+      phone: `${primaryCountryCode}${primaryPhone}`,
+      additionalPhone: `${additionalCountryCode}${additionalPhone}`,
+      dob: dobString,
+      gender,
+    };
+    localStorage.setItem('KycData', JSON.stringify(updated));
+  }, [email, primaryPhone, additionalPhone, primaryCountryCode, additionalCountryCode, dob, gender]);
   
 // For display in input
 const formatDisplayDate = (date: Date | null) => {
@@ -158,14 +187,7 @@ const formatDisplayDate = (date: Date | null) => {
   return `${dd}-${mm}-${yyyy}`;
 };
 
-// For saving in localStorage
-const formatStorageDate = (date: Date | null) => {
-  if (!date) return '';
-  const dd = String(date.getDate()).padStart(2, '0');
-  const mm = String(date.getMonth() + 1).padStart(2, '0');
-  const yyyy = date.getFullYear();
-  return `${dd}${mm}${yyyy}`;
-};
+// No longer needed: formatStorageDate, as we now use ISO string for dob in localStorage
 
 const handleOtpVerifySuccess = async () => {
   const existing = JSON.parse(localStorage.getItem('KycData') || '{}');

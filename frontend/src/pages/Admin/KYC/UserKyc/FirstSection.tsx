@@ -17,11 +17,11 @@ const FirstSection = () => {
   const toast = useAppToast();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [list, setList] = useState<any>();
+  const [comment, setComment] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedRow, setSelectedRow] = useState<any | null>(null);
   const [currentRequestStatus, setCurrentRequestStatus] = useState(selectedRow?.status || '');
-  const [comment, setComment] = useState('');
-  const [list, setList] = useState<any>();
 
   const handleOpen = (row: any) => {
     setSelectedRow(row);
@@ -33,13 +33,11 @@ const FirstSection = () => {
     setSelectedRow(null);
   };
 
-
   const getListData = async (status: any) => {
   const stsUpdated = status === "all" ? '' : status;
 
   try {
     const response = await admin.get(`/${url}/v1/kyc/list?status=${stsUpdated}`);
-    console.log("🔁 API Response for KYC List ➜", response);
 
     if (
       response?.data?.status === "201" ||
@@ -82,17 +80,23 @@ const FirstSection = () => {
 const handleCloseWithUpdate = async () => {
   if (selectedRow?._id) {
     setIsLoading(true);
-    await HandleUpdateStatus(selectedRow._id, currentRequestStatus);
-
-    // ✅ Refresh list again to show new status in table
-    await getListData("all");
-
-    setIsLoading(false);
+    try {
+      await HandleUpdateStatus(selectedRow._id, currentRequestStatus);
+      // ✅ Refresh list again to show new status in table
+      await getListData("all");
+      setIsLoading(false);
+      setOpen(false);
+      setSelectedRow(null);
+      setComment('');
+    } catch (err) {
+      setIsLoading(false); // Reset button if error
+      // Optionally, keep modal open for retry
+    }
+  } else {
+    setOpen(false);
+    setSelectedRow(null);
+    setComment('');
   }
-
-  setOpen(false);
-  setSelectedRow(null);
-  setComment('');
 };
 
   const columns = [
@@ -103,23 +107,28 @@ const handleCloseWithUpdate = async () => {
     },
     {
       field: 'userDetails?.name',
-      headerName: 'Type',
+      headerName: 'Name',
       render: (row: any) => row.userDetails?.[0]?.name || 'N/A',
     },
     {
       field: 'userDetails?.email',
-      headerName: 'Type',
+      headerName: 'Email',
       render: (row: any) => row.userDetails?.[0]?.email || 'N/A',
-    },
+    },  
     {
-      field: 'status',
-      headerName: 'Status',
-      render: (row: any) => (
-        <span className={`status-chip ${row.status.toLowerCase()}`}>
-          {row.status}
+    field: 'status',
+    headerName: 'Status',
+    render: (row: any) => {
+      // Check if status is "Pending" and documents are available
+      const isDocumentAvailable = row.addressDocumentType && row.documentNumber && row.documentType && row.primaryPhoneNumber && row.secondaryPhoneNumber && row.documentPhotoFront && row.documentPhotoBack && row.addressProofPhoto;
+      const status = row.status === 'Pending' && isDocumentAvailable ? 'Submitted' : row.status;
+      return (
+        <span className={`status-chip ${status.toLowerCase()}`}>
+          {status}
         </span>
-      )
-    },
+      );
+    }
+   },
     {
       field: 'action',
       headerName: 'Action',
@@ -173,9 +182,19 @@ const handleCloseWithUpdate = async () => {
               <Typography>+{selectedRow.secondaryPhoneNumber}</Typography>
             </Box>
 
-             <Box display="flex" justifyContent="space-between" mb={2}>
-            <Typography><strong>Date:</strong></Typography>
-              <Typography>{selectedRow.createdAt.slice(0, 10)}</Typography></Box>
+           <Box display="flex" justifyContent="space-between" mb={2}>
+            <Typography><strong>DOB:</strong></Typography>
+            <Typography>
+              {selectedRow.userDetails?.[0]?.dob 
+                ? `${selectedRow.userDetails[0].dob.slice(0, 2)}-${selectedRow.userDetails[0].dob.slice(2, 4)}-${selectedRow.userDetails[0].dob.slice(4)}`
+                : ''}
+            </Typography>
+          </Box>
+
+              <Box display="flex" justifyContent="space-between" mb={2}>
+              <Typography><strong>Gender</strong></Typography>
+              <Typography>{selectedRow.userDetails?.[0]?.gender}</Typography>
+              </Box>
 
              <Typography className="section-title">Document Details</Typography>
               <Box display="flex" justifyContent="space-between" mb={2} gap={2}>
@@ -191,56 +210,63 @@ const handleCloseWithUpdate = async () => {
               />
             </Box>
           <Box display="flex" justifyContent="space-between" mb={2} gap={2}>
-                <Box>
-                  <Typography>Uploaded Document Front</Typography>
-                  <div className="kyc-doc-image-preview">
-                    {selectedRow.documentPhotoFront ? (
-                      selectedRow.documentPhotoFront.toLowerCase().endsWith('.pdf') ? (
-                        <img
-                          src={PDF}
-                          alt="PDF Document"
-                          className="kyc-doc-pdf-icon"
-                        />
+            <Box>
+              <Typography>Uploaded Document Front</Typography>
+              <div className="kyc-doc-image-preview">
+                {(() => {
+                  const img = selectedRow.documentPhotoFront;
+                  if (img && typeof img === 'string' && img.trim() && img !== 'undefined') {
+                    if (img.toLowerCase().endsWith('.pdf')) {
+                      return <img src={PDF} alt="PDF Document" className="kyc-doc-pdf-icon" />;
+                    } else {
+                      const url = `${import.meta.env.VITE_PUBLIC_URL}/kyc/${img.trim()}`;
+                      console.log('[FRONT IMG URL]', url, 'Exists:', !!img);
+                      return img.trim() ? (
+                        <img src={url} alt="Document Front" className="kyc-doc-image" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = NoImage; }} />
                       ) : (
-                        <img
-                          src={`${import.meta.env.VITE_PUBLIC_URL}/kyc/${selectedRow.documentPhotoFront}`}
-                          alt="Document Front"
-                          className="kyc-doc-image"
-                        />
-                      )
-                    ) : (
-                      <div className="kyc-doc-image-placeholder">
-                        <img src={NoImage} alt="No Document" className="no-image-logo" />
-                      </div>
-                    )}
-                  </div>
-                </Box>
-
-                <Box>
-                  <Typography>Uploaded Document Back</Typography>
-                  <div className="kyc-doc-image-preview">
-                   {selectedRow.documentPhotoBack ? (
-                    selectedRow.documentPhotoBack.toLowerCase().endsWith('.pdf') ? (
-                      <img
-                        src={PDF}
-                        alt="PDF Document"
-                        className="kyc-doc-pdf-icon"
-                      />
-                    ) : (
-                      <img
-                        src={`${import.meta.env.VITE_PUBLIC_URL}/kyc/${selectedRow.documentPhotoBack}`}
-                        alt="Document Back"
-                        className="kyc-doc-image"
-                      />
-                    )
-                  ) : (
+                        <div className="kyc-doc-image-placeholder">
+                          <img src={NoImage} alt="No Document" className="no-image-logo" />
+                        </div>
+                      );
+                    }
+                  }
+                  return (
                     <div className="kyc-doc-image-placeholder">
                       <img src={NoImage} alt="No Document" className="no-image-logo" />
                     </div>
-                  )}
-                  </div>
-                </Box>
-              </Box>
+                  );
+                })()}
+              </div>
+            </Box>
+            <Box>
+              <Typography>Uploaded Document Back</Typography>
+              <div className="kyc-doc-image-preview">
+                {(() => {
+                  const img = selectedRow.documentPhotoBack;
+                  if (img && typeof img === 'string' && img.trim() && img !== 'undefined') {
+                    if (img.toLowerCase().endsWith('.pdf')) {
+                      return <img src={PDF} alt="PDF Document" className="kyc-doc-pdf-icon" />;
+                    } else {
+                      const url = `${import.meta.env.VITE_PUBLIC_URL}/kyc/${img.trim()}`;
+                      console.log('[BACK IMG URL]', url, 'Exists:', !!img);
+                      return img.trim() ? (
+                        <img src={url} alt="Document Back" className="kyc-doc-image" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = NoImage; }} />
+                      ) : (
+                        <div className="kyc-doc-image-placeholder">
+                          <img src={NoImage} alt="No Document" className="no-image-logo" />
+                        </div>
+                      );
+                    }
+                  }
+                  return (
+                    <div className="kyc-doc-image-placeholder">
+                      <img src={NoImage} alt="No Document" className="no-image-logo" />
+                    </div>
+                  );
+                })()}
+              </div>
+            </Box>
+          </Box>
              <Typography className="section-title">Residential Address</Typography>
 
             <Box display="flex" justifyContent="space-between" mb={2} gap={2}>
@@ -254,25 +280,29 @@ const handleCloseWithUpdate = async () => {
             <Typography>Uploaded Document</Typography>
 
             <div className="kyc-doc-image-preview">
-              {selectedRow?.addressProofPhoto ? (
-                selectedRow.addressProofPhoto.toLowerCase().endsWith('.pdf') ? (
-                  <img
-                    src={PDF}
-                    alt="PDF Document"
-                    className="kyc-doc-pdf-icon"
-                  />
-                ) : (
-                  <img
-                    src={`${import.meta.env.VITE_PUBLIC_URL}/kyc/${selectedRow.addressProofPhoto}`}
-                    alt="Address Document"
-                    className="kyc-doc-image"
-                  />
-                )
-              ) : (
-                <div className="kyc-doc-image-placeholder">
-                  <img src={NoImage} alt="No Document" className="no-image-logo" />
-                </div>
-              )}
+              {(() => {
+                const img = selectedRow?.addressProofPhoto;
+                if (img && typeof img === 'string' && img.trim() && img !== 'undefined') {
+                  if (img.toLowerCase().endsWith('.pdf')) {
+                    return <img src={PDF} alt="PDF Document" className="kyc-doc-pdf-icon" />;
+                  } else {
+                    const url = `${import.meta.env.VITE_PUBLIC_URL}/kyc/${img.trim()}`;
+                    console.log('[ADDRESS IMG URL]', url, 'Exists:', !!img);
+                    return img.trim() ? (
+                      <img src={url} alt="Address Document" className="kyc-doc-image" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = NoImage; }} />
+                    ) : (
+                      <div className="kyc-doc-image-placeholder">
+                        <img src={NoImage} alt="No Document" className="no-image-logo" />
+                      </div>
+                    );
+                  }
+                }
+                return (
+                  <div className="kyc-doc-image-placeholder">
+                    <img src={NoImage} alt="No Document" className="no-image-logo" />
+                  </div>
+                );
+              })()}
             </div>
 
             <Box mt={3}>

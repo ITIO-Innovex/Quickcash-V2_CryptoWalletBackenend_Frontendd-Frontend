@@ -98,13 +98,12 @@ module.exports = {
     }
   },
   // This function is used for fetching kyc data by their kyc id
-  getkycData: async(req,res) => {
-      
-    const user_id = req.params.id; 
-    const ObjectId = mongoose.Types.ObjectId;
+getkycData: async (req, res) => {
+  const user_id = req.params.id;
+  const ObjectId = mongoose.Types.ObjectId;
 
-    try {
-      if(!user_id) {  
+  try {
+    if (!user_id) {
       return res.status(402).json({
         status: 402,
         message: "User Id is missing",
@@ -112,33 +111,72 @@ module.exports = {
       });
     }
 
-    const listDetails = await Kyc.find({
-      user: new ObjectId(user_id)
-    })
+    // Perform aggregation to fetch KYC data and join with the users collection
+    const listDetails = await Kyc.aggregate([
+      {
+        $match: { user: new ObjectId(user_id) } // Match KYC by user ID
+      },
+      {
+        $lookup: {
+          from: "users", // 'users' collection name
+          localField: "user", // field in KYC collection
+          foreignField: "_id", // field in Users collection
+          as: "userDetails" // alias to store user data
+        }
+      },
+      {
+        $unwind: {
+          path: "$userDetails", // Unwind the userDetails array
+          preserveNullAndEmptyArrays: true // Preserve the data even if no match is found
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          email: 1,
+          primaryPhoneNumber: 1,
+          secondaryPhoneNumber: 1,
+          documentType: 1,
+          documentNumber: 1,
+          addressDocumentType: 1,
+          documentPhotoFront: 1,
+          documentPhotoBack: 1,
+          addressProofPhoto: 1,
+          status: 1,
+          emailVerified:1,
+          phonePVerified:1,
+          phoneSVerified:1,
+          userDetails: {
+            dob: 1, // Include dob from userDetails
+            gender: 1 // Include gender from userDetails
+          }
+        }
+      }
+    ]);
 
-    if(!listDetails) {
+    if (!listDetails || listDetails.length === 0) {
       return res.status(402).json({
         status: 402,
         message: "Error while fetching kyc data!!!",
         data: null,
       });
     }
- 
+
     return res.status(201).json({
-      status:201,
-      message: "kyc data are fetched Successfully",
+      status: 201,
+      message: "KYC data fetched successfully",
       data: listDetails,
     });
 
   } catch (error) {
-      console.log(error);
-      return res.status(500).json({
-        status: 500,
-        message: "Error while fetching kyc data!!!",
-        data: error
-      });
-    }
-  },
+    console.log("Error fetching KYC data:", error);
+    return res.status(500).json({
+      status: 500,
+      message: "Error while fetching kyc data!!!",
+      data: error
+    });
+  }
+},
   // This function is used for fetching data (for admin)
   getAdminkycData: async(req,res) => {
       
@@ -154,11 +192,48 @@ module.exports = {
       });
     }
 
-    const listDetails = await Kyc.find({
-      _id: new ObjectId(user_id)
-    })
+    // const listDetails = await Kyc.find({
+    //   _id: new ObjectId(user_id)
+    // })
 
-    if(!listDetails) {
+      const listDetails = await Kyc.aggregate([
+      {
+        $match: { user: new ObjectId(user_id) }
+      },
+      {
+        $lookup: {
+          from: 'users', // 'users' is the name of the User collection
+          localField: 'user', // field in the KYC collection
+          foreignField: '_id', // field in the User collection
+          as: 'userDetails' // alias for the joined data
+        }
+      },
+      {
+        $unwind: {
+          path: '$userDetails', // Unwind the userDetails array (as only one user will match)
+          preserveNullAndEmptyArrays: true // Preserve the data even if no match is found
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          email: 1,
+          primaryPhoneNumber: 1,
+          secondaryPhoneNumber: 1,
+          documentType: 1,
+          documentNumber: 1,
+          addressDocumentType: 1,
+          documentPhotoFront: 1,
+          documentPhotoBack: 1,
+          addressProofPhoto: 1,
+          status: 1,
+          dob: '$userDetails.dob',
+          gender: '$userDetails.gender'
+        }
+      }
+    ]);
+
+    if(!listDetails || listDetails.length === 0) {
       return res.status(402).json({
         status: 402,
         message: "Error while fetching kyc data!!!",
@@ -319,164 +394,164 @@ module.exports = {
     }
   },
   // This function is used for update kyc status
- updatekycRequestStatus : async (req, res) => {
-  
-    const { status, comment } = req.body;
+  updatekycRequestStatus : async (req, res) => {
     
-    try {
-      const kyc_id = req.params.id;
+      const { status, comment } = req.body;
       
-      if (!kyc_id) {
-        console.log("❌ KYC ID is missing!");
-        return res.status(401).json({
-          status: 401,
-          message: "KYC ID is missing",
-          data: null,
-        });
-      }
-  
-      if (!status) {
-        console.log("❌ Status is missing!");
-        return res.status(401).json({
-          status: 401,
-          message: "Status is missing",
-          data: null,
-        });
-      }
-  
-      // Find KYC User
-      const getUserId = await Kyc.findById({ _id: kyc_id });
-  
-      if (!getUserId) {
-        console.log("❌ User doesn't exist!");
-        return res.status(401).json({
-          status: 401,
-          message: "User doesn't exist",
-          data: null,
-        });
-      }
-  
-      //  Fetch User Details
-      const userInfo = await User.findOne({ _id: getUserId?.user });
-  
-      // Update KYC Data
-      const UpdateData = await Kyc.findByIdAndUpdate(
-        { _id: kyc_id },
-        { status, comment: comment ? comment : "" },
-        { new: true }
-      );
-  
-      if (!UpdateData) {
-        console.log("❌ Error while updating KYC request!");
-        return res.status(401).json({
-          status: 401,
-          message: "Error while updating KYC request!",
-          data: null,
-        });
-      }
-
-        const defaultCoin = await Coin.findOne({ isDefault: true });
-        console.log('found default coin', defaultCoin);
-        if (!defaultCoin) {
-          console.log("❌ No default coin found!");
-          return res.status(400).json({
-            status: 400,
-            message: "No default coin is set",
+      try {
+        const kyc_id = req.params.id;
+        
+        if (!kyc_id) {
+          console.log("❌ KYC ID is missing!");
+          return res.status(401).json({
+            status: 401,
+            message: "KYC ID is missing",
             data: null,
           });
         }
-       
-        let addressData = "";
-        const coin = `${defaultCoin.coin}_TEST`; 
-        console.log('coin name',coin);
-      if (userInfo?.vaultAccountId) {
-        console.log("✅ Vault Account Found:", userInfo.vaultAccountId);
-        addressData = await generateAndSaveWalletAddress(
-          userInfo._id,
-          coin,
-          parseInt(userInfo.vaultAccountId)
+    
+        if (!status) {
+          console.log("❌ Status is missing!");
+          return res.status(401).json({
+            status: 401,
+            message: "Status is missing",
+            data: null,
+          });
+        }
+    
+        // Find KYC User
+        const getUserId = await Kyc.findById({ _id: kyc_id });
+    
+        if (!getUserId) {
+          console.log("❌ User doesn't exist!");
+          return res.status(401).json({
+            status: 401,
+            message: "User doesn't exist",
+            data: null,
+          });
+        }
+    
+        //  Fetch User Details
+        const userInfo = await User.findOne({ _id: getUserId?.user });
+    
+        // Update KYC Data
+        const UpdateData = await Kyc.findByIdAndUpdate(
+          { _id: kyc_id },
+          { status, comment: comment ? comment : "" },
+          { new: true }
         );
-      } else {
-        console.log(" No Vault Account Found, Creating New Vault Account...");
-        const newVaultId = await createVaultAccount(userInfo?.email);
-  
-        if (newVaultId) {
-          console.log(" Vault Account Created:", newVaultId);
-          
-          //  Save new Vault ID in User collection
-          await User.updateOne({ _id: userInfo._id }, { vaultAccountId: newVaultId });
-  
-          //  Generate & Save Wallet Address
+    
+        if (!UpdateData) {
+          console.log("❌ Error while updating KYC request!");
+          return res.status(401).json({
+            status: 401,
+            message: "Error while updating KYC request!",
+            data: null,
+          });
+        }
+
+          const defaultCoin = await Coin.findOne({ isDefault: true });
+          console.log('found default coin', defaultCoin);
+          if (!defaultCoin) {
+            console.log("❌ No default coin found!");
+            return res.status(400).json({
+              status: 400,
+              message: "No default coin is set",
+              data: null,
+            });
+          }
+        
+          let addressData = "";
+          const coin = `${defaultCoin.coin}_TEST`; 
+          console.log('coin name',coin);
+        if (userInfo?.vaultAccountId) {
+          console.log("✅ Vault Account Found:", userInfo.vaultAccountId);
           addressData = await generateAndSaveWalletAddress(
             userInfo._id,
             coin,
-            parseInt(newVaultId)
+            parseInt(userInfo.vaultAccountId)
           );
         } else {
-          console.log("❌ Failed to create a new Vault Account!");
+          console.log(" No Vault Account Found, Creating New Vault Account...");
+          const newVaultId = await createVaultAccount(userInfo?.email);
+    
+          if (newVaultId) {
+            console.log(" Vault Account Created:", newVaultId);
+            
+            //  Save new Vault ID in User collection
+            await User.updateOne({ _id: userInfo._id }, { vaultAccountId: newVaultId });
+    
+            //  Generate & Save Wallet Address
+            addressData = await generateAndSaveWalletAddress(
+              userInfo._id,
+              coin,
+              parseInt(newVaultId)
+            );
+          } else {
+            console.log("❌ Failed to create a new Vault Account!");
+          }
         }
-      }
-  
-      if (addressData) {
-        console.log("🚀 Saving Wallet Address in walletaddressrequests Collection...");
-  
-        // Check if user already has a wallet for this coin
-        const existingWallet = await WalletAddressRequest.findOne({
-          user: userInfo._id,
-          coin: coin,
-        });
-  
-        if (!existingWallet) {
-          //  Create a new wallet entry
-          await WalletAddressRequest.create({
+    
+        if (addressData) {
+          console.log("🚀 Saving Wallet Address in walletaddressrequests Collection...");
+    
+          // Check if user already has a wallet for this coin
+          const existingWallet = await WalletAddressRequest.findOne({
             user: userInfo._id,
             coin: coin,
-            noOfCoins: "0.0000000",
-            walletAddress: addressData,
-            status: "completed",
           });
-          console.log("✅ New wallet entry saved.");
-        } else {
-          //  Update existing wallet address
-          await WalletAddressRequest.findOneAndUpdate(
-            { user: userInfo._id, coin: coin },
-            { walletAddress: addressData },
-            { new: true }
-          );
-          console.log("✅ Existing wallet entry updated.");
+    
+          if (!existingWallet) {
+            //  Create a new wallet entry
+            await WalletAddressRequest.create({
+              user: userInfo._id,
+              coin: coin,
+              noOfCoins: "0.0000000",
+              walletAddress: addressData,
+              status: "completed",
+            });
+            console.log("✅ New wallet entry saved.");
+          } else {
+            //  Update existing wallet address
+            await WalletAddressRequest.findOneAndUpdate(
+              { user: userInfo._id, coin: coin },
+              { walletAddress: addressData },
+              { new: true }
+            );
+            console.log("✅ Existing wallet entry updated.");
+          }
         }
+    
+        //  Send Email Notification
+        const name = userInfo?.name;
+        const email = userInfo?.email;
+        const htmlBody = await ejs.renderFile(
+          __dirname.replace("\\controllers", "") + "/views/KycUpdate.ejs",
+          { name, status, comment }
+        );
+    
+        if (htmlBody) {
+          const subject = "KYC Update !!!";
+          sendMail(email, subject, htmlBody);
+        }
+    
+        console.log(" [SUCCESS] KYC Request Updated & Wallet Address Handled");
+    
+        return res.status(201).json({
+          status: 201,
+          data: UpdateData,
+          message: "KYC data has been updated successfully",
+        });
+    
+      } catch (error) {
+        console.error("❌ Error in updatekycRequestStatus:", error);
+        return res.status(500).json({
+          status: 500,
+          message: "Something went wrong with API",
+          data: error,
+        });
       }
-  
-      //  Send Email Notification
-      const name = userInfo?.name;
-      const email = userInfo?.email;
-      const htmlBody = await ejs.renderFile(
-        __dirname.replace("\\controllers", "") + "/views/KycUpdate.ejs",
-        { name, status, comment }
-      );
-  
-      if (htmlBody) {
-        const subject = "KYC Update !!!";
-        sendMail(email, subject, htmlBody);
-      }
-  
-      console.log(" [SUCCESS] KYC Request Updated & Wallet Address Handled");
-  
-      return res.status(201).json({
-        status: 201,
-        data: UpdateData,
-        message: "KYC data has been updated successfully",
-      });
-  
-    } catch (error) {
-      console.error("❌ Error in updatekycRequestStatus:", error);
-      return res.status(500).json({
-        status: 500,
-        message: "Something went wrong with API",
-        data: error,
-      });
-    }
-  },  
+    },  
   // This function is used for fetching kyc list
   list: async(req,res) => {
       
@@ -537,6 +612,8 @@ module.exports = {
           country: 1,
           defaultCurrency: 1,
           status:1,
+          dob: 1,
+          gender: 1
         }
        }
       },
@@ -582,12 +659,13 @@ module.exports = {
           country: 1,
           defaultCurrency: 1,
           status:1,
+          dob: 1,
+          gender: 1
         }
        }
       },
       ])
     }
-
  if(!listDetails) {
   return res.status(402).json({
     status: 402,
@@ -736,7 +814,6 @@ module.exports = {
       return res.status(500).json({ message: "Internal Server Error" });
     }
   }
-
   }
 
 async function getWalletAddress(user, vaultAccountId, assetId) {
@@ -882,6 +959,7 @@ const createVaultWalletAddress = async (userid, assetId, vaultAccountId) => {
     return "Something went wrong.";
   }
 };
+
 const fetchWalletAddressFromVault = async (vaultAccountId, assetId) => {
   try {
     // console.log(
@@ -970,6 +1048,7 @@ const newVaultWalletAddress = async (userId, assetId, vaultAccountId) =>{
     return null;
   }
 };
+
 const generateAndSaveWalletAddress = async (userId, assetId, vaultAccountId) => {
   try {
     console.log("🚀 Generating Wallet Address...");
