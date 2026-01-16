@@ -2,14 +2,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Invoice <% <%= inv %></title>
+  <title>Invoice <%= inv %></title>
   <style>
     @media print {
      body {
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-     .bg {background: <%= byDefaultPrintColor %>}
     }
     html { -webkit-print-color-adjust: exact; }
   </style>
@@ -25,13 +24,13 @@
   </table>
   <table width="100%" style="margin-top: 30px;">
     <tr>
-      <td><% if(invoiceData[0].company_name) { %> <%= invoiceData[0].company_name %> <% } %></td>
+      <td><% if(invoiceData && invoiceData[0] && invoiceData[0].company_name) { %> <%= invoiceData[0].company_name %> <% } %></td>
     </tr>
     <tr>
-      <td><span style="font-weight: 900">Address:</span><span><% if(invoiceData[0].address) { %> <%= invoiceData[0].address %> <% } %></span></td>
+      <td><span style="font-weight: 900">Address:</span><span><% if(invoiceData && invoiceData[0] && invoiceData[0].address) { %> <%= invoiceData[0].address %> <% } %></span></td>
     </tr>
     <tr>
-      <td><span style="font-weight: 900;">Phone:</span><span><% if(invoiceData[0].mobile) { %> <%= invoiceData[0].mobile %> <% } %></span></td>
+      <td><span style="font-weight: 900;">Phone:</span><span><% if(invoiceData && invoiceData[0] && invoiceData[0].mobile) { %> <%= invoiceData[0].mobile %> <% } %></span></td>
     </tr>
   </table>
   <table width="100%" style="margin-top: 30px;">
@@ -39,32 +38,32 @@
       <td style="font-weight: 900;">To</td>
     </tr>
     <tr>
-      <td><span style="font-weight: 900">Name:</span><span><%= name %></span></td>
+      <td><span style="font-weight: 900">Name:</span><span><% if(name) { %><%= name %><% } %></span></td>
     </tr>
     <tr>
-      <td><span style="font-weight: 900;">Email:</span><span><%= email %></span></td>
+      <td><span style="font-weight: 900;">Email:</span><span><% if(email) { %><%= email %><% } %></span></td>
       <td style="font-weight: 900;" align="right"><% if(qrCode) { %> Payment QR Code <% } %></td>
     </tr>
     <tr>
-      <td><span style="font-weight: 900;">Address:</span><span><%= address %></span></td>
+      <td><span style="font-weight: 900;">Address:</span><span><% if(address) { %><%= address %><% } %></span></td>
       <td align="right" rowspan="4"><% if(qrCode) { %> <img src="<%= qrCode %>" width="140px" height="120px"/> <% } %></td>
     </tr>
     <tr>
       <td>
         <span style="font-weight: 900;">Invoice ID:</span>
-        <span>#<%= inv %></span>
+        <span>#<% if(inv) { %><%= inv %><% } %></span>
       </td>
     </tr>
     <tr>
       <td>
         <span style="font-weight: 900;">Invoice Date:</span>
-        <span><%= item.invoice_date %></span>
+        <span><% if(item && item.invoice_date) { %><%= item.invoice_date %><% } %></span>
       </td>
     </tr>
     <tr>
       <td>
         <span style="font-weight: 900;">Due Date:</span>
-        <span><%= item.due_date %></span>
+        <span><% if(item && item.due_date) { %><%= item.due_date %><% } %></span>
       </td>
     </tr>
   </table>
@@ -80,54 +79,58 @@
       </tr>
     </thead>
       <tbody>
-        <% item.productsInfo.forEach((product,index) => {%>
-          <tr>
-            <td style="padding: 12px;border:1px solid black;" align="center"><%= index+1 %></td>
-            <td style="padding: 12px;border:1px solid black;" align="center"><%= product.productName %></td>
-            <td style="padding: 12px;border:1px solid black;" align="center"><%= product.qty %></td>
-            <td style="padding: 12px;border:1px solid black;" align="center"><%= item.currency_text %><%= product.price %></td>
-            <td style="padding: 12px;border:1px solid black;" align="center"><%= item.currency_text %><%= product.amount %></td>
-          </tr>
-        <% }); %>
+        <% if(item && item.productsInfo && Array.isArray(item.productsInfo) && item.productsInfo.length > 0) { %>
+          <% item.productsInfo.forEach(function(product, index) { %>
+            <tr>
+              <td style="padding: 12px;border:1px solid black;" align="center"><%= index+1 %></td>
+              <td style="padding: 12px;border:1px solid black;" align="center"><% if(product && product.productName) { %><%= product.productName %><% } %></td>
+              <td style="padding: 12px;border:1px solid black;" align="center"><% if(product && product.qty) { %><%= product.qty %><% } %></td>
+              <td style="padding: 12px;border:1px solid black;" align="center"><% if(item && item.currency_text) { %><%= item.currency_text %><% } %><% if(product && product.price) { %><%= product.price %><% } %></td>
+              <td style="padding: 12px;border:1px solid black;" align="center"><% if(item && item.currency_text) { %><%= item.currency_text %><% } %><% if(product && product.amount) { %><%= product.amount %><% } %></td>
+            </tr>
+          <% }); %>
+        <% } %>
       </tbody>
   </table>
 
   <table width="100%" style="margin-top: 30px;">
     <tr>
       <td colspan="4" rowspan="6">
-        <span style="font-weight: 900;"><% if(item.tax.length > 0) { %> Tax Information (In %): <% } %></span><br />
-        <% item.tax.forEach((tx,index) => {%>
-          <span><%= tx %> </span> <br />
-        <% }); %>
+        <span style="font-weight: 900;"><% if(item && item.tax && Array.isArray(item.tax) && item.tax.length > 0) { %> Tax Information (In %): <% } %></span><br />
+        <% if(item && item.tax && Array.isArray(item.tax) && item.tax.length > 0) { %>
+          <% item.tax.forEach(function(tx, index) { %>
+            <span><% if(tx) { %><%= tx %><% } %> </span> <br />
+          <% }); %>
+        <% } %>
       </td>
       <td align="right" colspan="5" style="font-weight: 900;">AMOUNT:</td>
-      <td align="right" style="max-width: 100px;"><%= item.currency_text %><%= item.subTotal %></td>
+      <td align="right" style="max-width: 100px;"><% if(item && item.currency_text) { %><%= item.currency_text %><% } %><% if(item && item.subTotal !== undefined) { %><%= item.subTotal %><% } else { %>0<% } %></td>
     </tr>
     <tr>
       <td align="right" style="font-weight: 900;" colspan="5">DISCOUNT:</td>
-      <td align="right" style="max-width: 100px;"><%= item.currency_text %><%= item.sub_discount %></td>
+      <td align="right" style="max-width: 100px;"><% if(item && item.currency_text) { %><%= item.currency_text %><% } %><% if(item && item.sub_discount !== undefined) { %><%= item.sub_discount %><% } else { %>0<% } %></td>
     </tr>
     <tr>
       <td align="right" style="font-weight: 900;" colspan="5">TAX:</td>
-      <td align="right" style="max-width: 100px;"><%= item.currency_text %><%= item.sub_tax %></td>
+      <td align="right" style="max-width: 100px;"><% if(item && item.currency_text) { %><%= item.currency_text %><% } %><% if(item && item.sub_tax !== undefined) { %><%= item.sub_tax %><% } else { %>0<% } %></td>
     </tr>
     <tr>
       <td align="right" style="font-weight: 900;" colspan="5">TOTAL:</td>
-      <td align="right" style="max-width: 100px;"><%= item.currency_text %><%= item.total %></td>
+      <td align="right" style="max-width: 100px;"><% if(item && item.currency_text) { %><%= item.currency_text %><% } %><% if(item && item.total !== undefined) { %><%= item.total %><% } else { %>0<% } %></td>
     </tr>
     <tr>
       <td align="right" style="font-weight: 900;" colspan="5">TOTAL DUE:</td>
-      <td align="right" style="font-weight: 700;"><%= item.currency_text %><%= item.dueAmount %></td>
+      <td align="right" style="font-weight: 700;"><% if(item && item.currency_text) { %><%= item.currency_text %><% } %><% if(item && item.dueAmount !== undefined) { %><%= item.dueAmount %><% } else { %>0<% } %></td>
     </tr>
     <tr>
       <td align="right" style="font-weight: 900;" colspan="5">TOTAL PAID:</td>
-      <td align="right" style="font-weight: 700;"><%= item.currency_text %><%= item.paidAmount %></td>
+      <td align="right" style="font-weight: 700;"><% if(item && item.currency_text) { %><%= item.currency_text %><% } %><% if(item && item.paidAmount !== undefined) { %><%= item.paidAmount %><% } else { %>0<% } %></td>
     </tr>
   </table>
 
   <div style="margin-top:2%;font-weight: 700;">Notes:</div>
    <div style="margin-top:1%;">
-    <% if(item.note){ %>
+    <% if(item && item.note) { %>
      <h1><%- item.note %></h1>
     <% } else { %>  
      <h5>N/A</h5>
@@ -136,15 +139,15 @@
 
    <div style="margin-top:2%; font-weight: 700;">Terms:</div>
    <div style="margin-top:1%;">
-    <% if(item.terms){ %>
+    <% if(item && item.terms) { %>
      <h1><%- item.terms %></h1>
     <% } else { %>  
      <h5>N/A</h5>
-   <% } %>
+    <% } %>
    </div>
 
   <div style="font-weight: 900;margin-top: 30px;">Regards:</div>
-  <div><% if(invoiceData[0].regardstext) { %> <%= invoiceData[0].regardstext %> <% } %></div>
+  <div><% if(invoiceData && invoiceData[0] && invoiceData[0].regardstext) { %> <%= invoiceData[0].regardstext %> <% } %></div>
   
 </body>
 </html>

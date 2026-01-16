@@ -9,7 +9,6 @@
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
-       .bg {background: <%= byDefaultPrintColor %>}
       }
       html { -webkit-print-color-adjust: exact; }
     </style>
@@ -165,7 +164,15 @@
    <% } %>
    </div>
    
-   <div style="font-weight: 900;margin-top: 30px;">Regards:</div>
-   <div style="color:<%= byDefaultPrintColor %>;"><% if(invoiceData[0].regardstext) { %> <%= invoiceData[0].regardstext %> <% } %></div>
+   <div style="font-weight: 900; margin-top: 30px;">Regards:</div>
+   <div<% if (byDefaultPrintColor) { %> style="color:<%= byDefaultPrintColor %>;"<% } %>>
+     <% if (invoiceData && invoiceData[0] && invoiceData[0].regardstext) { %>
+       <%= invoiceData[0].regardstext %>
+     <% } else { %>
+       N/A
+     <% } %>
+   </div>
+     <% } %>
+   </div>
 </body>
 </html>
