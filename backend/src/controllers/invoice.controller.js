@@ -1699,9 +1699,16 @@ async function generatePDFfromURL(setting_id,url, outputPath,qrCode,inv,item,add
 
   try {
    const ejs = require("ejs");
-   ejs.renderFile(__dirname.replace('\controllers','') + `/views/InvoiceTemplates/${printFileName}`, {invoiceData:invcsettingData,byDefaultPrintColor,qrCode,item, address , email , name, inv, logoInvoice}, async function (err, data) {
+   const path = require('path');
+   const templatePath = path.join(__dirname.replace(/controllers[\/\\]?$/, ''), 'views', 'InvoiceTemplates', printFileName);
+   console.log("Template path:", templatePath);
+   console.log("Template file:", printFileName);
+   ejs.renderFile(templatePath, {invoiceData:invcsettingData,byDefaultPrintColor,qrCode,item, address , email , name, inv, logoInvoice}, async function (err, data) {
    if (err) {
     console.log("error in Invoice Template file: ",err);
+    console.log("Template path that failed:", templatePath);
+    console.log("Error details:", err.message);
+    console.log("Error stack:", err.stack);
    } else {
      const path = require('path');
      const fs = require('fs');
@@ -1716,21 +1723,33 @@ async function generatePDFfromURL(setting_id,url, outputPath,qrCode,inv,item,add
   
     const pathInvoice = __dirname.replace("src","public/invoices");
     const pdfPath = path.resolve(pathInvoice, inv+`/Invoice_${inv}.pdf`);
-    console.log("Invoice pdf path is ", pdfPath);
+    // Clean up the path - remove any "controllers" references and normalize
+    const cleanPdfPath = pdfPath.replace(/controllers[\/\\]?/g, '').replace(/\\/g, path.sep).replace(/\/\//g, '/');
+    console.log("Invoice pdf path is ", cleanPdfPath);
      
     const browser = await playwright.chromium.launch();
     const page = await browser.newPage();
     await page.setContent(data);
-    await page.pdf({ path: pdfPath.replace("controllers","") });
+    await page.pdf({ path: cleanPdfPath });
     console.log('PDF generated successfully');
+    
+    // Verify PDF file exists before sending email
+    if (!fs.existsSync(cleanPdfPath)) {
+      console.error('❌ ERROR: PDF file was not created at:', cleanPdfPath);
+      await browser.close();
+      return;
+    }
+    const stats = fs.statSync(cleanPdfPath);
+    console.log('✅ PDF file verified - Size:', (stats.size / 1024).toFixed(2), 'KB');
+    
     await browser.close();
     const htmlBody = `Dear ${name} , <br/><br/> Please find herewith below the Invoice <br /><br /> Quick Cash has sent you a invoice payment link , click on button<br /><br /><br /><a href="${urll}" style="margin-bottom:2px; text-decoration: none; cursor: pointer; font-size:16px; background-color: black; color: white; padding: 12px;border-radius: 12px;">Proceed to Pay</a> <br/><br/><br/> Regards <br/> Quick Cash`;
-    const subject = "Invoice!!!"
-    const emailSent = sendMailWithAttachment(email,subject,htmlBody,pdfPath.replace("controllers",""),title=`Invoice_${inv}.pdf`);
-    if(emailSent)
-      console.log("Invoice pdf has been sent");
-    else 
-      console.log("waiting...");
+    const subject = "Invoice!!!";
+    try{
+      await sendMailWithAttachment(email,subject,htmlBody,cleanPdfPath,title=`Invoice_${inv}.pdf`, true); // true = isInvoice flag
+    }catch(error){
+      console.log("Error while sending invoice mail", error);
+    }
     }
    });
   } catch (error) {
